@@ -9,12 +9,10 @@ from .prompts import (
 class ZeroshotBaseline:
     def __init__(
         self,
-        input: AgentInput,
         eval_mode: EvalMode,
         with_refusal: bool,
         llm_config: LLMConfig,
     ) -> None:
-        self.input = input
         self.eval_mode = eval_mode
         self.with_refusal = with_refusal
         self.llm_config = llm_config
@@ -49,10 +47,12 @@ class ZeroshotBaseline:
 
     async def generate_zeroshot_answers(
         self,
+        input: AgentInput,
     ) -> list[str]:
         """Generate baseline textual answers. Supports MCQ and open-ended questions.
         This version doesn't parse images.
         """
+        self.input = input
 
         llm_client = LLMClient(
             model_name=self.llm_config.model_name, temp=self.llm_config.temperature
