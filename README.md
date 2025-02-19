@@ -39,12 +39,12 @@ async def run_zeroshot_baseline(df):
             choices=row['choices']
         )
         answer, target, unsure_answer = await baseline_agent.generate_zeroshot_answers(input)
-        yield id, answer
+        yield id, answer, target, unsure_answer
 
 # Usage example
 async def main():
     results = []
-    async for id, answer in run_zeroshot_baseline(df):
+    async for id, answer, target, unsure_answer in run_zeroshot_baseline(df):
         results.append({'id': id, 'answer': answer, 'target': target, 'unsure': unsure_answer})
     return results
 ```
