@@ -10,13 +10,15 @@ from pydantic import BaseModel, ConfigDict, Field, SkipValidation
 
 class EvalMode(StrEnum):
     mcq = auto()
-    openended = auto()
+    openanswer = auto()
+
 
 class BaseModelWithID(BaseModel):
     def model_dump(self, **kwargs) -> dict:
         dump = super().model_dump(**kwargs)
         dump["id"] = str(dump["id"])
         return dump
+
 
 class AgentInput(BaseModelWithID):
     model_config = ConfigDict(extra="ignore", arbitrary_types_allowed=True)
@@ -25,19 +27,23 @@ class AgentInput(BaseModelWithID):
     target: str
     choices: list[str] | None = None
 
+
 class LLMConfig(BaseModel):
     model_name: str = "gpt-4o"
     temperature: float = 1.0
 
-def parse_response(text: str, tag: str = "answer", eval_mode:EvalMode = EvalMode.openended ) -> str:
+
+def parse_response(
+    text: str, tag: str = "answer", eval_mode: EvalMode = EvalMode.openanswer
+) -> str:
     start = text.find(f"<{tag}>") + len(f"<{tag}>")
     end = text.find(f"</{tag}>")
     answer = text[start:end]
-    if eval_mode == EvalMode.openended:
+    if eval_mode == EvalMode.openanswer:
         return answer
     else:
         return answer.strip().upper()
- 
+
 
 def randomize_choices(
     ideal: str, distractors: list[str], with_refusal: bool = True
@@ -65,5 +71,3 @@ def randomize_choices(
         return shuffled_choices, answer, unsure
     else:
         return shuffled_choices, answer, "empty"
-
-
