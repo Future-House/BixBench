@@ -22,7 +22,7 @@ OPEN_ENDED_PROMPT_TEMPLATE = (
     "\n\nExample Output: <answer> Your answer </answer>"
 )
 
-OPEN_ENDED_GRADING_PROMPT = """You are given a question, target answer and a predicted answer. Your task is to compare the target answer with the predicted and assess if the predicted answer is correct, incorrect or it refused or could not answer. 
+OPEN_ENDED_GRADING_PROMPT = """You are given a question, target answer and a predicted answer. Your task is to compare the target answer with the predicted and assess if the predicted answer is correct, incorrect or it refused to answer. 
 Question: {question}
 Target Answer: {target}
 Predicted Answer: {predicted}

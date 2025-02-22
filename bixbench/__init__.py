@@ -5,6 +5,7 @@ from .prompts import (
     OPEN_ENDED_PROMPT_TEMPLATE,
 )
 from .zero_shot import ZeroshotBaseline
+from .graders import grade_mcq_answer, grade_open_ended_answer, compute_metrics
 
 __all__ = [
     "randomize_choices",

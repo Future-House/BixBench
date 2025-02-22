@@ -1,5 +1,6 @@
-from prompts import OPEN_ENDED_GRADING_PROMPT
+from .prompts import OPEN_ENDED_GRADING_PROMPT
 import re
+from aviary.core import Message
 
 
 def grade_mcq_answer(target, predicted, unsure):
@@ -8,6 +9,8 @@ def grade_mcq_answer(target, predicted, unsure):
     unsure = unsure.upper()
 
     correct = predicted == target
+    #checks if the predicted answer is the refusal option. 
+    #Only for MCQ + w/resusal setting.Used to compute precision
     refusal = predicted != unsure
 
     if correct:
@@ -17,12 +20,13 @@ def grade_mcq_answer(target, predicted, unsure):
     return grade, correct, refusal
 
 
-def grade_open_ended_answer(question, target, predicted, llm_client):
+async def grade_open_ended_answer(question, target, predicted, llm_client):
     query = OPEN_ENDED_GRADING_PROMPT.format(
         question=question, target=target, predicted=predicted
     )
 
-    response, _, _ = llm_client.get_response(query=query)
+    completion = await llm_client.call_single([Message(content=query)])
+    response = completion.model_dump()["text"]
     # parse response
     match = re.search(r"<grade>\s*(.*?)\s*</grade>", response, re.DOTALL)
     grade = match.group(1).strip().lower() if match else None
@@ -49,12 +53,12 @@ def grade_open_ended_answer(question, target, predicted, llm_client):
     return grade, correct, refusal
 
 
-def compute_metrics(is_correct: list[bool], is_refued: list[bool]) -> dict:
-    if len(is_correct) != len(is_refued):
+def compute_metrics(grades: list[bool], is_refued: list[bool]) -> dict:
+    if len(grades) != len(is_refued):
         raise ValueError("is_correct and is_refued must have the same length")
 
-    n_total = len(is_correct)
-    n_correct = sum(1 for x in is_correct if x)
+    n_total = len(grades)
+    n_correct = sum(grades)
     n_sure = sum(1 for x in is_refued if x)
     # Calculate metrics
     accuracy = n_correct / n_total if n_total > 0 else 0
