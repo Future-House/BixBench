@@ -1,21 +1,24 @@
-import fhda
-import datasets
-from fhda.data_analysis_env import DataAnalysisEnv
-from fhda.utils import NBLanguage, load_mcq
-import fhda.prompts as prompts
-from huggingface_hub import hf_hub_download
 import argparse
+import ast
+import asyncio
+import json
+import logging
+import os
+import shutil
+from pathlib import Path
+from tempfile import mkdtemp
+
+import datasets
+from huggingface_hub import hf_hub_download
 from ldp.agent import AgentConfig
 from ldp.alg.rollout import RolloutManager
-import os
-import asyncio
-import ast
-from pathlib import Path
-import shutil
-import json
-from tempfile import mkdtemp
-import logging
+from ldp.data_structures import Trajectory
+
+import fhda
+import fhda.prompts as prompts
 from aviary.utils import EvalAnswerMode
+from fhda.data_analysis_env import DataAnalysisEnv
+from fhda.utils import NBLanguage, load_mcq, collect_notebook_stats
 
 logger = logging.getLogger(__name__)
 # CONFIG
@@ -33,7 +36,6 @@ notebook_name = "notebook.ipynb"
 language = NBLanguage.PYTHON
 capsule_mode = "mcq"
 include_refusal_option = True
-local_data_folder = "data/capsules/"
 system_prompt = prompts.CAPSULE_SYSTEM_PROMPT_OPEN
 if capsule_mode == "mcq":
     base_prompt = prompts.MCQ_PROMPT_TEMPLATE
@@ -42,34 +44,36 @@ elif capsule_mode == "open":
 elif capsule_mode == "hypothesis":
     base_prompt = prompts.HYPOTHESIS_PROMPT_TEMPLATE
 eval_mode = EvalAnswerMode.LLM
-local_output_path = "data/traces/v1"
+local_workspace_dir = Path("data/workspace").absolute()
+local_workspace_dir.mkdir(parents=True, exist_ok=True)
+local_traces_dir = Path("data/traces").absolute()
+local_traces_dir.mkdir(parents=True, exist_ok=True)
+local_data_folder = Path("data/capsules").absolute()
+local_data_folder.mkdir(parents=True, exist_ok=True)
 hf_repo_id = "futurehouse/bixbench-internal"
 
 
-def load_bixbench():
-    bixbench = datasets.load_dataset(hf_repo_id, split="train")
+def load_bixbench() -> datasets.Dataset:
+    bixbench = datasets.load_dataset(hf_repo_id, split="train").to_list()[2:]
     # Save all datasets locally
     # Create local directory if it doesn't exist
-    local_dir = Path(local_data_folder)
-    if local_dir.exists() and len(list(local_dir.iterdir())) == 53:
+    if local_data_folder.exists() and len(list(local_data_folder.iterdir())) == 53:
         logger.info("Local data folder already exists with 53 items, skipping download")
         return bixbench
-    local_dir.mkdir(parents=True, exist_ok=True)
 
     # Download and extract all datasets
     for capsule in bixbench:
         zip_filename = capsule["data_folder"]
 
         # Local paths
-        zip_path = local_dir / zip_filename
-        extract_dir = local_dir / zip_filename.replace(".zip", "")
+        zip_path = local_data_folder / zip_filename
+        extract_dir = local_data_folder / zip_filename.replace(".zip", "")
 
         # Download the zip file
-        print(zip_filename)
         hf_hub_download(
             repo_id=hf_repo_id,
             filename=zip_filename,
-            local_dir=local_dir,
+            local_dir=local_data_folder,
             repo_type="dataset",
         )
 
@@ -97,10 +101,33 @@ def load_bixbench():
     return bixbench
 
 
-def string_to_list(example):
-    example["questions"] = ast.literal_eval(example["questions"])
-    example["categories"] = ast.literal_eval(example["categories"])
-    return example
+async def store_trajectory(trajectory: Trajectory, env: DataAnalysisEnv) -> None:
+    extract = {
+        "problem_id": env.problem_id,
+        "agent_answer": env.state.answer,
+        "ideal_answer": env.answer,
+        "problem": env.problem,
+        "mcq_options": [q.options for q in env.mcqs] if env.mcqs else [],
+        "mcq_question": [q.question for q in env.mcqs] if env.mcqs else [],
+        "question_rewards": env.question_rewards,
+        "notebook_stats": collect_notebook_stats(env.state.nb),
+        "actions": env.state.actions,
+        "metadata": env.metadata,
+        "refusal_options": {
+            q.question_id: q.unsure_answer_letter for q in (env.mcqs or [])
+        },
+        "nb": env.state.nb
+    }
+
+    # Download run metadata
+    with (local_traces_dir / f"{env.problem_id}.json").open("w") as f:
+        json.dump(
+            extract,
+            f,
+            indent=4,
+        )
+    # Download run trajectory
+    await trajectory.to_jsonl(local_traces_dir / f"{env.problem_id}.jsonl")
 
 
 def environment_factory(capsule: dict) -> DataAnalysisEnv:
@@ -112,23 +139,23 @@ def environment_factory(capsule: dict) -> DataAnalysisEnv:
         questions="\n-------\n".join([i.question_prompt for i in processed_questions])
     )
     answer = {i.question_id: i.ideal_answer for i in processed_questions}
-    work_dir = Path(local_output_path).absolute() / capsule["short_id"]
+    work_dir = (local_workspace_dir / capsule["uuid"]).absolute()
     work_dir.mkdir(parents=True, exist_ok=True)
-    local_data_folder_path = Path(local_data_folder) / capsule["data_folder"].replace(
+    local_capsule_data_path = local_data_folder / capsule["data_folder"].replace(
         ".zip", ""
     )
     # Copy all files from data folder to work directory
-    for item in local_data_folder_path.iterdir():
+    for item in local_capsule_data_path.iterdir():
         if item.is_file():
             shutil.copy2(item, work_dir)
         elif item.is_dir():
             shutil.copytree(item, work_dir / item.name)
     nb_path = work_dir / notebook_name
 
-    capsule_args = {
+    env_args = {
         "problem_id": capsule["short_id"],
         "problem": problem,
-        "eval_mode": "test",
+        "eval_mode": eval_mode,
         "nb_path": nb_path,
         "work_dir": work_dir,
         "language": language,
@@ -139,30 +166,25 @@ def environment_factory(capsule: dict) -> DataAnalysisEnv:
         "use_tmp_work_dir": False,
     }
 
-    return DataAnalysisEnv(**capsule_args)
+    return DataAnalysisEnv(**env_args)
 
 
-def main():
+async def main() -> None:
     bixbench = load_bixbench()
     # Construct agent and rollout manager
     agent = agent_config.construct_agent()
     rollout = RolloutManager(agent=agent, callbacks=callbacks)
 
     # Construct batch of environments
-    all_trajectories = []
+    all_trajectories: list = []
     for capsule in bixbench:
         env = environment_factory(capsule)
         trajectories = await rollout.sample_trajectories(
             environments=[env], max_steps=max_rollout_steps
         )
-        # print(trajectories)
 
         all_trajectories.append(trajectories)
         break
-    # Save trajectories to file
-    # with open('trajectories.json', 'w') as f:
-    #     json.dump(all_trajectories, f)
-
 
 if __name__ == "__main__":
     asyncio.run(main())
