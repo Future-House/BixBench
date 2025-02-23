@@ -44,6 +44,8 @@ elif capsule_mode == "hypothesis":
 eval_mode = EvalAnswerMode.LLM
 local_output_path = "data/traces/v1"
 hf_repo_id = "futurehouse/bixbench-internal"
+
+
 def load_bixbench():
     bixbench = datasets.load_dataset(hf_repo_id, split="train")
     # Save all datasets locally
@@ -53,29 +55,34 @@ def load_bixbench():
         logger.info("Local data folder already exists with 53 items, skipping download")
         return bixbench
     local_dir.mkdir(parents=True, exist_ok=True)
-    
+
     # Download and extract all datasets
     for capsule in bixbench:
-        zip_filename = capsule['data_folder']
-        
+        zip_filename = capsule["data_folder"]
+
         # Local paths
         zip_path = local_dir / zip_filename
-        extract_dir = local_dir / zip_filename.replace('.zip', '')
-        
+        extract_dir = local_dir / zip_filename.replace(".zip", "")
+
         # Download the zip file
         print(zip_filename)
-        hf_hub_download(repo_id=hf_repo_id, filename=zip_filename, local_dir=local_dir, repo_type="dataset")
-        
+        hf_hub_download(
+            repo_id=hf_repo_id,
+            filename=zip_filename,
+            local_dir=local_dir,
+            repo_type="dataset",
+        )
+
         # Extract the zip file
         shutil.unpack_archive(zip_path, extract_dir)
-        
+
         # Get the Data folder path
         data_folder = next(p for p in extract_dir.iterdir() if "Data" in p.name)
-        
+
         # Move contents of Data folder to parent directory
         for item in data_folder.iterdir():
             shutil.move(str(item), str(extract_dir / item.name))
-            
+
         # Remove the Data folder and Notebook folder
         shutil.rmtree(data_folder)
         notebook_folder = next(p for p in extract_dir.iterdir() if "Notebook" in p.name)
@@ -89,10 +96,12 @@ def load_bixbench():
         break
     return bixbench
 
+
 def string_to_list(example):
-    example['questions'] = ast.literal_eval(example['questions'])
-    example['categories'] = ast.literal_eval(example['categories'])
+    example["questions"] = ast.literal_eval(example["questions"])
+    example["categories"] = ast.literal_eval(example["categories"])
     return example
+
 
 def environment_factory(capsule: dict) -> DataAnalysisEnv:
     raw_questions = ast.literal_eval(capsule["questions"])
@@ -100,14 +109,14 @@ def environment_factory(capsule: dict) -> DataAnalysisEnv:
         load_mcq(i, open_question=True, question_id=i["id"]) for i in raw_questions
     ]
     problem = base_prompt.format(
-        questions="\n-------\n".join(
-            [i.question_prompt for i in processed_questions]
-        )
+        questions="\n-------\n".join([i.question_prompt for i in processed_questions])
     )
     answer = {i.question_id: i.ideal_answer for i in processed_questions}
     work_dir = Path(local_output_path).absolute() / capsule["short_id"]
     work_dir.mkdir(parents=True, exist_ok=True)
-    local_data_folder_path = Path(local_data_folder) / capsule["data_folder"].replace('.zip', '')
+    local_data_folder_path = Path(local_data_folder) / capsule["data_folder"].replace(
+        ".zip", ""
+    )
     # Copy all files from data folder to work directory
     for item in local_data_folder_path.iterdir():
         if item.is_file():
@@ -115,7 +124,7 @@ def environment_factory(capsule: dict) -> DataAnalysisEnv:
         elif item.is_dir():
             shutil.copytree(item, work_dir / item.name)
     nb_path = work_dir / notebook_name
-    
+
     capsule_args = {
         "problem_id": capsule["short_id"],
         "problem": problem,
@@ -129,8 +138,9 @@ def environment_factory(capsule: dict) -> DataAnalysisEnv:
         "mcqs": processed_questions,
         "use_tmp_work_dir": False,
     }
-    
+
     return DataAnalysisEnv(**capsule_args)
+
 
 def main():
     bixbench = load_bixbench()
@@ -142,14 +152,17 @@ def main():
     all_trajectories = []
     for capsule in bixbench:
         env = environment_factory(capsule)
-        trajectories = await rollout.sample_trajectories(environments=[env], max_steps=max_rollout_steps)
+        trajectories = await rollout.sample_trajectories(
+            environments=[env], max_steps=max_rollout_steps
+        )
         # print(trajectories)
-        
+
         all_trajectories.append(trajectories)
         break
     # Save trajectories to file
     # with open('trajectories.json', 'w') as f:
     #     json.dump(all_trajectories, f)
+
 
 if __name__ == "__main__":
     asyncio.run(main())
