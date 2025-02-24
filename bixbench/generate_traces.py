@@ -19,6 +19,7 @@ from aviary.utils import EvalAnswerMode
 
 logger = logging.getLogger(__name__)
 
+
 class TraceGenerator:
     def __init__(self):
         self.config = self.load_config()
@@ -41,11 +42,14 @@ class TraceGenerator:
         # Get system prompt and base prompt from config
         system_prompt = getattr(prompts, config["capsule"]["system_prompt"])
         capsule_mode = config["capsule"]["mode"]
-        base_prompt = getattr(prompts, config["capsule"]["prompt_templates"][capsule_mode])
+        base_prompt = getattr(
+            prompts, config["capsule"]["prompt_templates"][capsule_mode]
+        )
 
         return {
             "agent_config": agent_config,
             "max_rollout_steps": config["rollout"]["max_steps"],
+            "batch_size": config["rollout"]["batch_size"],
             "notebook_name": config["notebook"]["name"],
             "language": NBLanguage[config["notebook"]["language"].upper()],
             "capsule_mode": capsule_mode,
@@ -60,14 +64,18 @@ class TraceGenerator:
         }
 
     def load_bixbench(self) -> datasets.Dataset:
-        bixbench = datasets.load_dataset(self.config["hf_repo_id"], split="train").to_list()[4:]
+        bixbench = datasets.load_dataset(
+            self.config["hf_repo_id"], split="train"
+        ).to_list()
         # Save all datasets locally
         # Create local directory if it doesn't exist
         if (
             self.config["local_data_folder"].exists()
             and len(list(self.config["local_data_folder"].iterdir())) == 53
         ):
-            logger.info("Local data folder already exists with 53 items, skipping download")
+            logger.info(
+                "Local data folder already exists with 53 items, skipping download"
+            )
             return bixbench
 
         # Download and extract all datasets
@@ -76,7 +84,9 @@ class TraceGenerator:
 
             # Local paths
             zip_path = self.config["local_data_folder"] / zip_filename
-            extract_dir = self.config["local_data_folder"] / zip_filename.replace(".zip", "")
+            extract_dir = self.config["local_data_folder"] / zip_filename.replace(
+                ".zip", ""
+            )
 
             # Download the zip file
             hf_hub_download(
@@ -98,7 +108,9 @@ class TraceGenerator:
 
             # Remove the Data folder and Notebook folder
             shutil.rmtree(data_folder)
-            notebook_folder = next(p for p in extract_dir.iterdir() if "Notebook" in p.name)
+            notebook_folder = next(
+                p for p in extract_dir.iterdir() if "Notebook" in p.name
+            )
             shutil.rmtree(notebook_folder)
             # Remove any .ipynb files in the extract directory
             for ipynb_file in extract_dir.glob("*.ipynb"):
@@ -106,10 +118,11 @@ class TraceGenerator:
             # Remove the zip file
             zip_path.unlink()
             capsule["local_data_folder"] = extract_dir
-            break
         return bixbench
 
-    async def store_trajectory(self, trajectory: Trajectory, env: DataAnalysisEnv) -> None:
+    async def store_trajectory(
+        self, trajectory: Trajectory, env: DataAnalysisEnv
+    ) -> None:
         extract = {
             "problem_id": env.problem_id,
             "agent_answer": env.state.answer,
@@ -120,7 +133,9 @@ class TraceGenerator:
             "notebook_stats": collect_notebook_stats(env.state.nb),
             "num_actions": len(env.state.actions),
             # Local data folder is not serializable
-            "metadata": {k: v for k, v in env.metadata.items() if k != "local_data_folder"},
+            "metadata": {
+                k: v for k, v in env.metadata.items() if k != "local_data_folder"
+            },
             "refusal_options": {
                 q.question_id: q.unsure_answer_letter for q in (env.mcqs or [])
             },
@@ -128,14 +143,18 @@ class TraceGenerator:
         }
 
         # Download run metadata
-        with (self.config["local_traces_dir"] / f"{env.problem_id}.json").open("w") as f:
+        with (self.config["local_traces_dir"] / f"{env.problem_id}.json").open(
+            "w"
+        ) as f:
             json.dump(
                 extract,
                 f,
                 indent=4,
             )
         # Download run trajectory
-        await trajectory.to_jsonl(self.config["local_traces_dir"] / f"{env.problem_id}.jsonl")
+        await trajectory.to_jsonl(
+            self.config["local_traces_dir"] / f"{env.problem_id}.jsonl"
+        )
 
     def environment_factory(self, capsule: dict) -> DataAnalysisEnv:
         raw_questions = ast.literal_eval(capsule["questions"])
@@ -143,7 +162,9 @@ class TraceGenerator:
             load_mcq(i, open_question=True, question_id=i["id"]) for i in raw_questions
         ]
         problem = self.config["base_prompt"].format(
-            questions="\n-------\n".join([i.question_prompt for i in processed_questions])
+            questions="\n-------\n".join(
+                [i.question_prompt for i in processed_questions]
+            )
         )
         answer = {i.question_id: i.ideal_answer for i in processed_questions}
         work_dir = (self.config["local_workspace_dir"] / capsule["uuid"]).absolute()
@@ -181,16 +202,19 @@ class TraceGenerator:
         agent = self.config["agent_config"].construct_agent()
         rollout = RolloutManager(agent=agent)
 
-        # Construct batch of environments
-        all_trajectories: list = []
-        for capsule in bixbench:
-            env = self.environment_factory(capsule)
+        # Process environments in batches
+        for i in range(0, len(bixbench), self.config["batch_size"]):
+            batch = bixbench[i : i + self.config["batch_size"]]
+            environments = [self.environment_factory(capsule) for capsule in batch]
+
             trajectories = await rollout.sample_trajectories(
-                environments=[env], max_steps=self.config["max_rollout_steps"]
+                environments=environments, max_steps=self.config["max_rollout_steps"]
             )
-            await self.store_trajectory(trajectories[0], env)
-            all_trajectories.append(trajectories)
-            break
+
+            # Store trajectories for each environment
+            for trajectory, env in zip(trajectories, environments):
+                await self.store_trajectory(trajectory, env)
+
 
 if __name__ == "__main__":
     generator = TraceGenerator()
