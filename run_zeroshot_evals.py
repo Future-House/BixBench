@@ -30,7 +30,7 @@ def parse_args():
         help="Evaluation mode",
     )
     parser.add_argument("--model", default="gpt-4o", help="Model name to use")
-    
+
     parser.add_argument(
         "--temperature", type=float, default=1.0, help="Model temperature"
     )
