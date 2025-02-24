@@ -9,8 +9,8 @@ def grade_mcq_answer(target, predicted, unsure):
     unsure = unsure.upper()
 
     correct = predicted == target
-    #checks if the predicted answer is the refusal option. 
-    #Only for MCQ + w/resusal setting.Used to compute precision
+    # checks if the predicted answer is the refusal option.
+    # Only for MCQ + w/resusal setting.Used to compute precision
     refusal = predicted != unsure
 
     if correct:

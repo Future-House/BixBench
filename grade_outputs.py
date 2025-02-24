@@ -56,7 +56,6 @@ async def grade_answers(
     df = pd.read_csv(input_file)
     try:
         if eval_mode == EvalMode.openanswer:
-
             llm_client = LiteLLMModel(
                 name=f"{model_name}",
                 config={"name": model_name, "temperature": temperature, **kwargs},

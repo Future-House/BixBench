@@ -16,6 +16,7 @@ __pycache__/
 # pyenv
 .python-version
 .env
+.venv
 
 # Installer logs
 pip-log.txt
@@ -47,3 +48,5 @@ MANIFEST
 #  before PyInstaller builds the exe, so as to inject date/other infos into it.
 *.manifest
 *.spec
+
+data/

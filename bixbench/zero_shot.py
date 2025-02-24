@@ -54,7 +54,11 @@ class ZeroshotBaseline:
             )
 
         if self.eval_mode == EvalMode.openanswer:
-            return template.format(question=self.input.question), self.input.target, "empty"
+            return (
+                template.format(question=self.input.question),
+                self.input.target,
+                "empty",
+            )
 
     async def generate_zeroshot_answers(
         self,
