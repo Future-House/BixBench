@@ -1,0 +1,29 @@
+agent:
+  agent_type: "ReActAgent"
+  agent_kwargs:
+    model: "gpt-4o"
+    temperature: 0.0
+
+rollout:
+  max_steps: 25
+  batch_size: 16
+
+notebook:
+  name: "notebook.ipynb"
+  language: "python"
+
+capsule:
+  mode: "mcq"
+  include_refusal_option: true
+  system_prompt: "CAPSULE_SYSTEM_PROMPT_OPEN"
+  prompt_templates:
+    mcq: "MCQ_PROMPT_TEMPLATE"
+    open: "OPEN_PROMPT_TEMPLATE"
+    hypothesis: "HYPOTHESIS_PROMPT_TEMPLATE"
+  eval_mode: "LLM"
+
+paths:
+  workspace_dir: "data/workspace"
+  traces_dir: "data/traces"
+  data_folder: "data/capsules"
+  hf_repo_id: "futurehouse/bixbench-internal" 

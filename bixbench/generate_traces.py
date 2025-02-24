@@ -63,12 +63,32 @@ class TraceGenerator:
             "hf_repo_id": config["paths"]["hf_repo_id"],
         }
 
-    def load_bixbench(self) -> datasets.Dataset:
+    async def process_capsule(self, capsule):
+        zip_filename = capsule["data_folder"]
+        zip_path = self.config["local_data_folder"] / zip_filename
+        extract_dir = self.config["local_data_folder"] / zip_filename.replace(
+            ".zip", ""
+        )
+
+        # Download the zip file - run in thread pool since it's I/O bound
+        await asyncio.to_thread(
+            hf_hub_download,
+            repo_id=self.config["hf_repo_id"],
+            filename=zip_filename,
+            local_dir=self.config["local_data_folder"],
+            repo_type="dataset",
+        )
+
+        # Extract and process files - run in thread pool since it's I/O bound
+        await asyncio.to_thread(self._extract_and_process_files, zip_path, extract_dir)
+
+        capsule["local_data_folder"] = extract_dir
+
+    async def load_bixbench(self) -> datasets.Dataset:
         bixbench = datasets.load_dataset(
             self.config["hf_repo_id"], split="train"
         ).to_list()
-        # Save all datasets locally
-        # Create local directory if it doesn't exist
+
         if (
             self.config["local_data_folder"].exists()
             and len(list(self.config["local_data_folder"].iterdir())) == 53
@@ -78,47 +98,45 @@ class TraceGenerator:
             )
             return bixbench
 
-        # Download and extract all datasets
-        for capsule in bixbench:
-            zip_filename = capsule["data_folder"]
+        # Process all capsules concurrently
+        tasks = [self.process_capsule(capsule) for capsule in bixbench]
+        await asyncio.gather(*tasks)
 
-            # Local paths
-            zip_path = self.config["local_data_folder"] / zip_filename
-            extract_dir = self.config["local_data_folder"] / zip_filename.replace(
-                ".zip", ""
-            )
+        return bixbench
 
-            # Download the zip file
-            hf_hub_download(
-                repo_id=self.config["hf_repo_id"],
-                filename=zip_filename,
-                local_dir=self.config["local_data_folder"],
-                repo_type="dataset",
-            )
+    def _extract_and_process_files(self, zip_path: Path, extract_dir: Path):
+        """Helper method to extract and process zip files"""
+        # Extract the zip file
+        shutil.unpack_archive(zip_path, extract_dir)
 
-            # Extract the zip file
-            shutil.unpack_archive(zip_path, extract_dir)
+        # Get the Data folder path
+        data_folder = next(p for p in extract_dir.iterdir() if "Data" in p.name)
 
-            # Get the Data folder path
-            data_folder = next(p for p in extract_dir.iterdir() if "Data" in p.name)
+        # Move contents of Data folder to parent directory
+        for item in data_folder.iterdir():
+            shutil.move(str(item), str(extract_dir / item.name))
 
-            # Move contents of Data folder to parent directory
-            for item in data_folder.iterdir():
-                shutil.move(str(item), str(extract_dir / item.name))
+        # Remove the Data folder
+        shutil.rmtree(data_folder)
 
-            # Remove the Data folder and Notebook folder
-            shutil.rmtree(data_folder)
+        # Safely remove Notebook folder if it exists
+        try:
             notebook_folder = next(
-                p for p in extract_dir.iterdir() if "Notebook" in p.name
+                p
+                for p in extract_dir.iterdir()
+                if "Notebook" in p.name and p.is_dir()  # Only match directories
             )
             shutil.rmtree(notebook_folder)
-            # Remove any .ipynb files in the extract directory
-            for ipynb_file in extract_dir.glob("*.ipynb"):
-                ipynb_file.unlink()
-            # Remove the zip file
-            zip_path.unlink()
-            capsule["local_data_folder"] = extract_dir
-        return bixbench
+        except StopIteration:
+            # No Notebook folder found, that's okay
+            pass
+
+        # Remove any .ipynb files in the extract directory
+        for ipynb_file in extract_dir.glob("*.ipynb"):
+            ipynb_file.unlink()
+
+        # Remove the zip file
+        zip_path.unlink()
 
     async def store_trajectory(
         self, trajectory: Trajectory, env: DataAnalysisEnv
@@ -197,7 +215,7 @@ class TraceGenerator:
         return DataAnalysisEnv(**env_args)
 
     async def run(self) -> None:
-        bixbench = self.load_bixbench()
+        bixbench = await self.load_bixbench()
         # Construct agent and rollout manager
         agent = self.config["agent_config"].construct_agent()
         rollout = RolloutManager(agent=agent)
