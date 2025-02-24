@@ -86,9 +86,11 @@ async def evaluate(
                 target=q_dict["ideal_answer"],
                 choices=[q_dict[f"distractor_{i}"] for i in range(1, 4)],
             )
-            answer, target, unsure_answer = (
-                await baseline_agent.generate_zeroshot_answers(input)
-            )
+            (
+                answer,
+                target,
+                unsure_answer,
+            ) = await baseline_agent.generate_zeroshot_answers(input)
             results.append(
                 {
                     "uuid": dataset["train"][i]["uuid"],
