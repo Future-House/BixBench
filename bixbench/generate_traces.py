@@ -1,13 +1,10 @@
-import argparse
 import ast
 import asyncio
 import json
 import logging
-import os
 import shutil
-import yaml
 from pathlib import Path
-from tempfile import mkdtemp
+import yaml
 
 import datasets
 from huggingface_hub import hf_hub_download
@@ -15,11 +12,10 @@ from ldp.agent import AgentConfig
 from ldp.alg.rollout import RolloutManager
 from ldp.data_structures import Trajectory
 
-import fhda
-import fhda.prompts as prompts
-from aviary.utils import EvalAnswerMode
+from fhda import prompts
 from fhda.data_analysis_env import DataAnalysisEnv
 from fhda.utils import NBLanguage, load_mcq, collect_notebook_stats
+from aviary.utils import EvalAnswerMode
 
 logger = logging.getLogger(__name__)
 
@@ -134,7 +130,6 @@ async def store_trajectory(trajectory: Trajectory, env: DataAnalysisEnv) -> None
         },
         "nb": env.state.nb,
     }
-    print(extract)
 
     # Download run metadata
     with (config["local_traces_dir"] / f"{env.problem_id}.json").open("w") as f:
