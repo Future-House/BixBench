@@ -2,7 +2,7 @@ agent:
   agent_type: "ReActAgent"
   agent_kwargs:
     model: "gpt-4o"
-    temperature: 0.0
+    temperature: 1.0
 
 rollout:
   max_steps: 25
@@ -13,7 +13,7 @@ notebook:
   language: "python"
 
 capsule:
-  mode: "mcq"
+  mode: "open"
   include_refusal_option: true
   system_prompt: "CAPSULE_SYSTEM_PROMPT_OPEN"
   prompt_templates:
@@ -21,6 +21,7 @@ capsule:
     open: "OPEN_PROMPT_TEMPLATE"
     hypothesis: "HYPOTHESIS_PROMPT_TEMPLATE"
   eval_mode: "LLM"
+  avoid_images: true
 
 paths:
   workspace_dir: "data/workspace"

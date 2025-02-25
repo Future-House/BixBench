@@ -45,6 +45,8 @@ class TraceGenerator:
         base_prompt = getattr(
             prompts, config["capsule"]["prompt_templates"][capsule_mode]
         )
+        if config["capsule"]["avoid_images"]:
+            base_prompt += "\n" + prompts.AVOID_IMAGES
 
         return {
             "agent_config": agent_config,
@@ -65,12 +67,20 @@ class TraceGenerator:
 
     async def process_capsule(self, capsule):
         zip_filename = capsule["data_folder"]
-        zip_path = self.config["local_data_folder"] / zip_filename
         extract_dir = self.config["local_data_folder"] / zip_filename.replace(
             ".zip", ""
         )
+        zip_path = self.config["local_data_folder"] / zip_filename
 
-        # Download the zip file - run in thread pool since it's I/O bound
+        # Check if capsule folder exists and is non-empty
+        if extract_dir.exists() and any(extract_dir.iterdir()):
+            logger.debug(
+                f"Capsule folder {extract_dir.name} already exists and is non-empty"
+            )
+            capsule["local_data_folder"] = extract_dir
+            return
+
+        # Download and process if not already present
         await asyncio.to_thread(
             hf_hub_download,
             repo_id=self.config["hf_repo_id"],
@@ -79,24 +89,13 @@ class TraceGenerator:
             repo_type="dataset",
         )
 
-        # Extract and process files - run in thread pool since it's I/O bound
         await asyncio.to_thread(self._extract_and_process_files, zip_path, extract_dir)
-
         capsule["local_data_folder"] = extract_dir
 
     async def load_bixbench(self) -> datasets.Dataset:
         bixbench = datasets.load_dataset(
             self.config["hf_repo_id"], split="train"
         ).to_list()
-
-        if (
-            self.config["local_data_folder"].exists()
-            and len(list(self.config["local_data_folder"].iterdir())) == 53
-        ):
-            logger.info(
-                "Local data folder already exists with 53 items, skipping download"
-            )
-            return bixbench
 
         # Process all capsules concurrently
         tasks = [self.process_capsule(capsule) for capsule in bixbench]
