@@ -1,6 +1,5 @@
 import copy
 import json
-import os
 import ast
 import random
 from asyncio import Semaphore
@@ -9,50 +8,14 @@ from typing import Dict, List, Tuple, Any, Optional
 import litellm
 import nbconvert
 import nbformat
-from google.cloud import storage
-from statsmodels.stats.proportion import proportion_confint
 import pandas as pd
 import numpy as np
 import base64
 from tqdm import tqdm
 import asyncio
 import prompts
-import matplotlib.pyplot as plt
 
 litellm.set_verbose = False
-
-import pandas as pd
-from statsmodels.stats.proportion import proportion_confint
-import numpy as np
-import asyncio
-from asyncio import Semaphore
-from typing import Dict, Any, List
-from tqdm import tqdm
-import nbconvert
-import nbformat
-import copy
-import base64
-
-
-def get_wilson_ci(row: pd.Series, confidence_level: float = 0.95) -> pd.Series:
-    successes = int(row["success"].sum())
-    n = len(row["success"])
-    ci_lower, ci_upper = proportion_confint(
-        count=successes,
-        nobs=n,
-        method="wilson",  # Wilson score interval
-        alpha=1 - confidence_level,
-    )
-    return pd.Series(
-        {
-            "success_rate": successes / n,
-            "ci_lower": ci_lower,
-            "ci_upper": ci_upper,
-            "n_trials": n,
-            "n_successes": successes,
-        }
-    )
-
 
 def notebook_to_md(nb: nbformat.NotebookNode) -> Tuple[str, Optional[Dict[str, Any]]]:
     image_counter = 1
@@ -589,47 +552,6 @@ def run_majority_voting(
     return k_values, means, stds
 
 
-def majority_vote_accuracy_by_k(
-    run_results: dict, style: str = "dark", name=""
-) -> None:
-    plt.figure(figsize=(15, 6))
-
-    for run_name, (k_values, means, stds) in run_results.items():
-        print(k_values, means, stds)
-        if k_values is None:
-            continue
-        plt.plot(k_values, means, "o-", label=run_name)
-        plt.fill_between(
-            k_values,
-            [m - s for m, s in zip(means, stds)],
-            [m + s for m, s in zip(means, stds)],
-            alpha=0.2,
-        )
-
-    plt.xlabel("Number of Votes (k)")
-    plt.ylabel("Accuracy")
-    plt.xlim(1, 9)
-    plt.title("Majority Voting Accuracy vs Number of Votes")
-    plt.xticks(k_values)
-    if name == "image_comparison":
-        plt.axhline(y=0.2, color="red", linestyle=":", label="Random Guess")
-    else:
-        plt.axhline(
-            y=0.2,
-            color="red",
-            linestyle=":",
-            label="With Insufficient Option Random Guess",
-        )
-        plt.axhline(
-            y=0.25,
-            color="green",
-            linestyle=":",
-            label="Without Insufficient Option Random Guess",
-        )
-    plt.legend()  # bbox_to_anchor=(1.05, 0), loc='lower left')
-    plt.grid(True, alpha=0.3)
-    plt.savefig(f"majority_vote_accuracy_{name}.png")
-    plt.show()
 
 
 def wilson_ci(p, n, z=1.96):

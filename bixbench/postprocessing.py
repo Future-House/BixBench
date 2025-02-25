@@ -2,14 +2,12 @@ import pandas as pd
 import postprocessing_utils as utils
 import asyncio
 import ast
-import numpy as np
-import matplotlib.pyplot as plt
-from scipy.stats import norm
+import plotting_utils
 
 pd.options.mode.chained_assignment = None
 
 
-async def main():
+async def grade_outputs():
     df = pd.read_csv("raw_data.csv")
     df["md_images"] = df["md_images"].apply(ast.literal_eval)
 
@@ -72,7 +70,7 @@ async def main():
     no_insufficient_eval_df.to_csv("no_insufficient_eval_df1.csv", index=False)
 
 
-async def main2():
+async def run_majority_vote():
     insufficient_eval_df = pd.read_csv("insufficient_eval_df1.csv")
     no_insufficient_eval_df = pd.read_csv("no_insufficient_eval_df1.csv")
 
@@ -111,15 +109,15 @@ async def main2():
         "4o_mcq_image_with_insufficient": "GPT-4o with Insufficient Option",
     }
 
-    utils.majority_vote_accuracy_by_k(
+    plotting_utils.majority_vote_accuracy_by_k(
         {r1[k]: run_results[k] for k in r1}, name="image_comparison"
     )
-    utils.majority_vote_accuracy_by_k(
+    plotting_utils.majority_vote_accuracy_by_k(
         {r2[k]: run_results[k] for k in r2}, name="insufficient_option_comparison"
     )
 
 
-async def main3():
+async def compare_capsule_mode():
     # Load data
     dfs = {
         "insufficient": pd.read_csv("insufficient_eval_df1.csv"),
@@ -150,7 +148,7 @@ async def main3():
     results = calculate_results(tmp)
 
     # Plot results
-    plot_model_comparison(results, model1, model2)
+    plotting_utils.plot_model_comparison(results, model1, model2)
 
 
 def calculate_results(df):
@@ -174,142 +172,6 @@ def calculate_results(df):
                     }
                 )
     return results
-
-
-def plot_model_comparison(results, model1, model2):
-    """Create a bar chart comparing model performance across different formats."""
-    # Setup
-    plt.figure(figsize=(12, 6))
-    barWidth = 0.35
-    formats = ["open", "mcq_with_insufficient", "mcq_without_insufficient"]
-    x = np.arange(len(formats))
-    colors = {model1: "orange", model2: "#b3d9f2"}
-
-    # Define baselines
-    baselines = {
-        "claude-3-5-sonnet-latest-grader-openended": 0.11486486486486487,
-        "gpt-4o-grader-openended": 0.09121621621621621,
-        "claude-3-5-sonnet-latest-grader-mcq-refusal-True": 0.13851351351351351,
-        "gpt-4o-grader-mcq-refusal-True": 0.10810810810810811,
-        "claude-3-5-sonnet-latest-grader-mcq-refusal-False": 0.33783783783783783,
-        "gpt-4o-grader-mcq-refusal-False": 0.32094594594594594,
-        "random w/ refusal": 0.2,
-        "random w/o refusal": 0.25,
-    }
-
-    # Draw baseline lines
-    draw_baselines(x, baselines, barWidth)
-
-    # Draw model performance bars
-    draw_model_bars(x, results, barWidth, formats, colors, model1, model2)
-
-    # Customize plot appearance
-    plt.ylabel("Accuracy")
-    plt.title("Model Performance by Question Format with Wilson CI @95%")
-    plt.xticks(x + barWidth / 2, ["Open-ended", "MCQ w/ refusal", "MCQ w/o refusal"])
-
-    # Create legend with proper order
-    handles, labels = plt.gca().get_legend_handles_labels()
-    order = [3, 2, 1, 0]  # This will put Claude first, then GPT-4
-    handles = [handles[idx] for idx in order]
-    labels = [labels[idx] for idx in order]
-    plt.legend(handles, labels)
-
-    # Add grid and display
-    plt.grid(True, axis="y", linestyle="--", alpha=0.7)
-    plt.tight_layout()
-    plt.show()
-
-
-def draw_baselines(x, baselines, barWidth):
-    """Draw baseline lines on the plot."""
-    baseline_color = "grey"
-    random_color = "grey"
-    line_width = 2
-    extension = 0.05
-    half_bar = barWidth / 2
-    baseline_bar = "-"
-
-    # Define baseline positions
-    baseline_positions = [
-        # Format: (baseline_key, x_position, width_offset)
-        ("claude-3-5-sonnet-latest-grader-openended", x[0], 0),
-        ("gpt-4o-grader-openended", x[0], barWidth),
-        ("claude-3-5-sonnet-latest-grader-mcq-refusal-True", x[1], 0),
-        ("gpt-4o-grader-mcq-refusal-True", x[1], barWidth),
-        ("claude-3-5-sonnet-latest-grader-mcq-refusal-False", x[2], 0),
-        ("gpt-4o-grader-mcq-refusal-False", x[2], barWidth),
-    ]
-
-    # Draw model baselines
-    for baseline_key, x_pos, width_offset in baseline_positions:
-        plt.hlines(
-            y=baselines[baseline_key],
-            xmin=x_pos - extension - half_bar + width_offset,
-            xmax=x_pos + barWidth + extension - half_bar + width_offset,
-            color=baseline_color,
-            linestyle=baseline_bar,
-            linewidth=line_width,
-            label="baseline"
-            if baseline_key == "claude-3-5-sonnet-latest-grader-openended"
-            else "",
-        )
-
-    # Draw random baselines
-    plt.hlines(
-        y=baselines["random w/ refusal"],
-        xmin=x[1] - extension - half_bar,
-        xmax=x[1] + 2 * barWidth + extension - half_bar,
-        color=random_color,
-        linestyle="--",
-        linewidth=line_width,
-        label="random",
-    )
-
-    plt.hlines(
-        y=baselines["random w/o refusal"],
-        xmin=x[2] - extension - half_bar,
-        xmax=x[2] + 2 * barWidth + extension - half_bar,
-        color=random_color,
-        linestyle="--",
-        linewidth=line_width,
-    )
-
-
-def draw_model_bars(x, results, barWidth, formats, colors, model1, model2):
-    """Draw performance bars for each model."""
-    for i, model in enumerate([model1, model2]):
-        model_results = [r for r in results if r["model"] == model]
-        means = [
-            next((r["mean"] for r in model_results if r["format"] == fmt), 0)
-            for fmt in formats
-        ]
-        ci_lows = [
-            next((r["ci_low"] for r in model_results if r["format"] == fmt), 0)
-            for fmt in formats
-        ]
-        ci_highs = [
-            next((r["ci_high"] for r in model_results if r["format"] == fmt), 0)
-            for fmt in formats
-        ]
-
-        yerr = np.array(
-            [
-                [m - l for m, l in zip(means, ci_lows)],
-                [h - m for m, h in zip(means, ci_highs)],
-            ]
-        )
-
-        plt.bar(
-            x + i * barWidth,
-            means,
-            barWidth,
-            label=model,
-            color=colors[model],
-            alpha=0.5 if model == model1 else 1,
-            yerr=yerr,
-            capsize=5,
-        )
 
 
 # asyncio.run(main())
