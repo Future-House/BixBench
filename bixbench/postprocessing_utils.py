@@ -19,7 +19,6 @@ from tqdm import tqdm
 
 # Local imports
 import prompts
-
 litellm.set_verbose = False
 
 
@@ -76,6 +75,7 @@ async def send_message_to_llm(
     message: List[Dict[str, str]], model: str, sem: Semaphore
 ) -> Any:
     async with sem:
+        #todo use lmi (FH wrapper) LiteLLMModel instead of litellm
         response = await litellm.acompletion(model=model, messages=message)
         return response
 
@@ -379,7 +379,7 @@ def create_eval_df(data: List[Dict[str, Any]]) -> pd.DataFrame:
         mcq_options = load_answer(row.mcq_options)
         if isinstance(agent_ans, list):
             agent_ans = {f"q{i}": v for i, v in enumerate(agent_ans)}
-            
+
         if not agent_ans:
             continue
         
