@@ -1,11 +1,9 @@
 import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
-import asyncio
-from typing import Dict, Any
-
+from unittest.mock import  patch, MagicMock
+import sys
+sys.path.append("../")
 from bixbench.zero_shot import ZeroshotBaseline
-from bixbench.utils import  AgentInput, EvalMode, parse_response
-from aviary.core import Message
+from bixbench.utils import  AgentInput, EvalMode
 
 
 class TestZeroshotBaseline:
