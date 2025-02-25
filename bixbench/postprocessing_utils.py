@@ -17,6 +17,7 @@ import prompts
 
 litellm.set_verbose = False
 
+
 def notebook_to_md(nb: nbformat.NotebookNode) -> Tuple[str, Optional[Dict[str, Any]]]:
     image_counter = 1
     nb = copy.deepcopy(nb)
@@ -550,8 +551,6 @@ def run_majority_voting(
     means = [np.mean(accuracies[k]) for k in k_values]
     stds = [np.std(accuracies[k]) for k in k_values]
     return k_values, means, stds
-
-
 
 
 def wilson_ci(p, n, z=1.96):

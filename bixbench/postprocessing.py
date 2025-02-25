@@ -133,12 +133,14 @@ async def compare_capsule_mode():
         [dfs["insufficient"].copy(), dfs["no_insufficient"].copy(), dfs["open"].copy()]
     )
     tmp["format"] = tmp["run_name"].apply(
-        lambda x: "open"
-        if "open" in x
-        else (
-            "mcq_with_insufficient"
-            if "with_insufficient" in x
-            else "mcq_without_insufficient"
+        lambda x: (
+            "open"
+            if "open" in x
+            else (
+                "mcq_with_insufficient"
+                if "with_insufficient" in x
+                else "mcq_without_insufficient"
+            )
         )
     )
     tmp["model"] = tmp["run_name"].apply(lambda x: model1 if "4o" in x else model2)
@@ -175,4 +177,6 @@ def calculate_results(df):
 
 
 # asyncio.run(main())
-asyncio.run(main3())
+asyncio.run(grade_outputs())
+asyncio.run(run_majority_vote())
+asyncio.run(compare_capsule_mode())
