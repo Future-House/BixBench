@@ -64,8 +64,8 @@ def randomize_choices(
         for letter, sigma_i in zip(ALPHABET, perm, strict=False)
     ]
 
-    answer = ALPHABET[perm.index(0)]
-    unsure = ALPHABET[perm.index(1)]
+    answer = ALPHABET[perm.index(0)] #one letter - answer
+    unsure = ALPHABET[perm.index(1)] #one letter - unsure answer
 
     if with_refusal:
         return shuffled_choices, answer, unsure
