@@ -19,7 +19,6 @@ from tqdm import tqdm
 
 # Local imports
 import prompts
-
 litellm.set_verbose = False
 
 
@@ -76,6 +75,7 @@ async def send_message_to_llm(
     message: List[Dict[str, str]], model: str, sem: Semaphore
 ) -> Any:
     async with sem:
+        #todo use lmi (FH wrapper) LiteLLMModel instead of litellm
         response = await litellm.acompletion(model=model, messages=message)
         return response
 
@@ -379,44 +379,30 @@ def create_eval_df(data: List[Dict[str, Any]]) -> pd.DataFrame:
         mcq_options = load_answer(row.mcq_options)
         if isinstance(agent_ans, list):
             agent_ans = {f"q{i}": v for i, v in enumerate(agent_ans)}
-        # Create rows for each question
+
         if not agent_ans:
             continue
+        
+        # Create rows for each question
         for q_num in ideal_ans.keys():
             uuid = f"{row.problem_id}_{q_num}"
-            if q_num not in agent_ans.keys():
-                rows.append(
-                    {
-                        "uuid": uuid,
-                        "problem_id": row.problem_id,
-                        "question": question[q_num],
-                        "question_num": q_num,
-                        "agent_answer": None,
-                        "ideal_answer": ideal_ans[q_num],
-                        "run_name": row.run_name,
-                        "md_notebook": row.md_notebook,
-                        "md_images": row.md_images,
-                        "mcq_options": mcq_options[q_num],
-                    }
-                )
-            else:
-                rows.append(
-                    {
-                        "uuid": uuid,
-                        "problem_id": row.problem_id,
-                        "question": question[q_num],
-                        "question_num": q_num,
-                        "agent_answer": agent_ans[q_num],
-                        "ideal_answer": ideal_ans[q_num],
-                        "run_name": row.run_name,
-                        "md_notebook": row.md_notebook,
-                        "md_images": row.md_images,
-                        "mcq_options": mcq_options[q_num],
-                    }
-                )
-
-    df_expanded = pd.DataFrame(rows)
-    return df_expanded
+            
+            rows.append(
+                {
+                    "uuid": uuid,
+                    "problem_id": row.problem_id,
+                    "question": question[q_num],
+                    "question_num": q_num,
+                    "agent_answer": agent_ans.get(q_num, None),
+                    "ideal_answer": ideal_ans[q_num],
+                    "run_name": row.run_name,
+                    "md_notebook": row.md_notebook,
+                    "md_images": row.md_images,
+                    "mcq_options": mcq_options[q_num],
+                }
+            )
+         
+    return pd.DataFrame(rows)
 
 
 def questions_to_mcq(question, options: List[Dict[str, Any]], insufficient=True):
