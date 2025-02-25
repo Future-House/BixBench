@@ -1,5 +1,11 @@
+import json
+from typing import Dict, List, Tuple
+
 import matplotlib.pyplot as plt
 import numpy as np
+from plot_style import set_fh_mpl_style
+
+set_fh_mpl_style()
 
 
 def majority_vote_accuracy_by_k(
@@ -41,8 +47,9 @@ def majority_vote_accuracy_by_k(
         )
     plt.legend()  # bbox_to_anchor=(1.05, 0), loc='lower left')
     plt.grid(True, alpha=0.3)
-    plt.savefig(f"majority_vote_accuracy_{name}.png")
+    plt.savefig(f"bixbench_results/majority_vote_accuracy_{name}.png")
     plt.show()
+
 
 def plot_model_comparison(results, model1, model2):
     """Create a bar chart comparing model performance across different formats."""
@@ -53,18 +60,9 @@ def plot_model_comparison(results, model1, model2):
     x = np.arange(len(formats))
     colors = {model1: "orange", model2: "#b3d9f2"}
 
-    # Define baselines
-    baselines = {
-        "claude-3-5-sonnet-latest-grader-openended": 0.11486486486486487,
-        "gpt-4o-grader-openended": 0.09121621621621621,
-        "claude-3-5-sonnet-latest-grader-mcq-refusal-True": 0.13851351351351351,
-        "gpt-4o-grader-mcq-refusal-True": 0.10810810810810811,
-        "claude-3-5-sonnet-latest-grader-mcq-refusal-False": 0.33783783783783783,
-        "gpt-4o-grader-mcq-refusal-False": 0.32094594594594594,
-        "random w/ refusal": 0.2,
-        "random w/o refusal": 0.25,
-    }
-
+    # Load baselines from JSON file
+    with open("bixbench_results/zero_shot_baselines.json", "r") as f:
+        baselines = json.load(f)
     # Draw baseline lines
     draw_baselines(x, baselines, barWidth)
 
@@ -86,6 +84,7 @@ def plot_model_comparison(results, model1, model2):
     # Add grid and display
     plt.grid(True, axis="y", linestyle="--", alpha=0.7)
     plt.tight_layout()
+    plt.savefig(f"bixbench_results/model_comparison_{name}.png")
     plt.show()
 
 
@@ -118,9 +117,11 @@ def draw_baselines(x, baselines, barWidth):
             color=baseline_color,
             linestyle=baseline_bar,
             linewidth=line_width,
-            label="baseline"
-            if baseline_key == "claude-3-5-sonnet-latest-grader-openended"
-            else "",
+            label=(
+                "baseline"
+                if baseline_key == "claude-3-5-sonnet-latest-grader-openended"
+                else ""
+            ),
         )
 
     # Draw random baselines

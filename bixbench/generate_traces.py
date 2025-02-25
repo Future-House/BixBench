@@ -197,6 +197,10 @@ class TraceGenerator:
                 shutil.copytree(item, work_dir / item.name)
         nb_path = work_dir / self.config["notebook_name"]
 
+        # Add some extra metadata from config
+        capsule["avoid_images"] = self.config["avoid_images"]
+        capsule["include_refusal_option"] = self.config["include_refusal_option"]
+
         env_args = {
             "problem_id": capsule["short_id"],
             "problem": problem,
@@ -224,6 +228,7 @@ class TraceGenerator:
             batch = bixbench[i : i + self.config["batch_size"]]
             environments = [self.environment_factory(capsule) for capsule in batch]
 
+            # TODO: Create simple rollout manager that does not use LDP
             trajectories = await rollout.sample_trajectories(
                 environments=environments, max_steps=self.config["max_rollout_steps"]
             )

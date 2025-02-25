@@ -1,18 +1,23 @@
+# Standard library imports
 import copy
 import json
 import ast
 import random
+import base64
+import asyncio
+import re
 from asyncio import Semaphore
 from typing import Dict, List, Tuple, Any, Optional
 
+# Third-party imports
 import litellm
 import nbconvert
 import nbformat
 import pandas as pd
 import numpy as np
-import base64
 from tqdm import tqdm
-import asyncio
+
+# Local imports
 import prompts
 
 litellm.set_verbose = False
@@ -176,6 +181,7 @@ def collect_notebook_stats(nb: nbformat.NotebookNode):
                     if "![" in line or "<img" in line:
                         stats["images"] += 1
     except Exception as e:
+        print(f"Error in collect_notebook_stats: {e}")
         return {k: np.nan for k in stats.keys()}
     return stats
 
@@ -277,7 +283,12 @@ def process_cell_output(
             md.append(f"<{len(images) + 1}>")
             image_format = data_type.split("/")[-1]
             image_prefix = f"data:image/{image_format};base64,"
-            images.append(image_prefix + encode_image_to_base64(output.data[data_type]))
+            try:
+                images.append(
+                    image_prefix + encode_image_to_base64(output.data[data_type])
+                )
+            except Exception as e:
+                print(f"Error processing image: {e}")
         else:
             md.append(limit_notebook_output(output.data[data_type]))
 
@@ -453,7 +464,7 @@ def create_llm_message_content(row) -> List[Dict[str, Any]]:
                     }
                 )
             except Exception as e:
-                print(f"Error processing image: {e}")
+                print(f"Error adding image to content: {e}")
 
     return content
 
@@ -465,14 +476,13 @@ def create_prompt(row):
             correct_answer=row.ideal_answer,
             proposed_answer=row.agent_answer,
         )
-    elif "mcq" in row["run_name"]:
+    if "mcq" in row["run_name"]:
         return (
             prompts.MCQ_EVAL_PROMPT.replace("{{notebook}}", row.md_notebook)
             .replace("{{question}}", row.formatted_question)
             .replace("{{proposed_answer}}", str(row.agent_answer))
         )
-    else:
-        return np.nan
+    return np.nan
 
 
 def update_eval_df(eval_df, insufficient=False, run_map=None):
@@ -495,8 +505,6 @@ def update_eval_df(eval_df, insufficient=False, run_map=None):
 
 
 def xml_extract(text):
-    import re
-
     match = re.search(r"<answer>([A-Z])</answer>", text)
     if match:
         return match.group(1)
@@ -525,9 +533,7 @@ def run_majority_voting(
     grouped_df: pd.DataFrame, k_values: List[int], n_trials: int
 ) -> Tuple[List[int], List[float], List[float]]:
     # Fix: Calculate majority predictions first
-    majority_predictions = grouped_df["agent_mcq_answer"].apply(
-        lambda x: majority_vote(x)
-    )
+    majority_predictions = grouped_df["agent_mcq_answer"].apply(majority_vote)
 
     # Calculate accuracy
     accuracy = (majority_predictions == grouped_df["correct_letter"]).mean()

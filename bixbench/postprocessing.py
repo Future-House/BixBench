@@ -1,14 +1,19 @@
-import pandas as pd
-import postprocessing_utils as utils
+# Standard library imports
 import asyncio
 import ast
+
+# Third-party imports
+import pandas as pd
+
+# Local imports
+import postprocessing_utils as utils
 import plotting_utils
 
 pd.options.mode.chained_assignment = None
 
 
 async def grade_outputs():
-    df = pd.read_csv("raw_data.csv")
+    df = pd.read_csv("bixbench_results/raw_data.csv")
     df["md_images"] = df["md_images"].apply(ast.literal_eval)
 
     # Create eval df
@@ -45,7 +50,7 @@ async def grade_outputs():
     results = await utils.process_batch(batch, "gpt-4o", max_concurrent=100)
     open_eval_df["correct"] = results
     open_eval_df["correct"] = open_eval_df.correct.apply(lambda x: 1 if x == "1" else 0)
-    open_eval_df.to_csv("open_eval_df1.csv", index=False)
+    open_eval_df.to_csv("bixbench_results/open_eval_df.csv", index=False)
     print(open_eval_df.groupby("run_name").correct.mean())
 
     # MCQ
@@ -66,13 +71,19 @@ async def grade_outputs():
         no_insufficient_eval_df["agent_mcq_answer"]
         == no_insufficient_eval_df["correct_letter"]
     )
-    insufficient_eval_df.to_csv("insufficient_eval_df1.csv", index=False)
-    no_insufficient_eval_df.to_csv("no_insufficient_eval_df1.csv", index=False)
+    insufficient_eval_df.to_csv(
+        "bixbench_results/insufficient_eval_df.csv", index=False
+    )
+    no_insufficient_eval_df.to_csv(
+        "bixbench_results/no_insufficient_eval_df.csv", index=False
+    )
 
 
 async def run_majority_vote():
-    insufficient_eval_df = pd.read_csv("insufficient_eval_df1.csv")
-    no_insufficient_eval_df = pd.read_csv("no_insufficient_eval_df1.csv")
+    insufficient_eval_df = pd.read_csv("bixbench_results/insufficient_eval_df.csv")
+    no_insufficient_eval_df = pd.read_csv(
+        "bixbench_results/no_insufficient_eval_df.csv"
+    )
 
     # Majority vote by run_name
     maj_vote_df = pd.concat(
@@ -92,7 +103,7 @@ async def run_majority_vote():
             lambda x: x[0]
         )
         grouped_df = grouped_df.dropna()
-        k_values, means, stds = utils.run_majority_voting(grouped_df, range(1, 3), 3)
+        k_values, means, stds = utils.run_majority_voting(grouped_df, range(1, 10), 10)
         run_results[run_name] = (k_values, means, stds)
 
     r1 = {
@@ -110,19 +121,20 @@ async def run_majority_vote():
     }
 
     plotting_utils.majority_vote_accuracy_by_k(
-        {r1[k]: run_results[k] for k in r1}, name="image_comparison"
+        {value: run_results[key] for key, value in r1.items()}, name="image_comparison"
     )
     plotting_utils.majority_vote_accuracy_by_k(
-        {r2[k]: run_results[k] for k in r2}, name="insufficient_option_comparison"
+        {value: run_results[key] for key, value in r2.items()},
+        name="insufficient_option_comparison",
     )
 
 
 async def compare_capsule_mode():
     # Load data
     dfs = {
-        "insufficient": pd.read_csv("insufficient_eval_df1.csv"),
-        "no_insufficient": pd.read_csv("no_insufficient_eval_df1.csv"),
-        "open": pd.read_csv("open_eval_df1.csv"),
+        "insufficient": pd.read_csv("bixbench_results/insufficient_eval_df.csv"),
+        "no_insufficient": pd.read_csv("bixbench_results/no_insufficient_eval_df.csv"),
+        "open": pd.read_csv("bixbench_results/open_eval_df.csv"),
     }
 
     # Define model names for clarity
@@ -176,7 +188,6 @@ def calculate_results(df):
     return results
 
 
-# asyncio.run(main())
 asyncio.run(grade_outputs())
 asyncio.run(run_majority_vote())
 asyncio.run(compare_capsule_mode())
