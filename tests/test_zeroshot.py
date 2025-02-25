@@ -88,10 +88,10 @@ class TestZeroshotBaseline:
                 "C", 
                 "D"
             )
-            yield mock"""
+            yield mock
 
     def test_prep_query_mcq(self, mcq_input):
-        """Test query preparation for MCQ mode"""
+        "Test query preparation for MCQ mode"
 
         with patch("bixbench.utils.randomize_choices") as mock_randomize_choices:
             mock_randomize_choices.return_value = (
@@ -117,7 +117,7 @@ class TestZeroshotBaseline:
     
         assert answer == "C"
         assert unsure == "D"
-        assert 'A. London' in distractors
+        assert 'A. London' in distractors"""
 
     def test_prep_query_open_ended(self, open_ended_input):
         """Test query preparation for open-ended mode"""
