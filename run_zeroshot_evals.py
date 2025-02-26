@@ -1,16 +1,16 @@
+import asyncio
+from itertools import islice
+import sys
+import argparse
+from bixbench import ZeroshotBaseline, AgentInput
+import ast
+from huggingface_hub import login
 from datasets import load_dataset
 import pandas as pd
 import os
 from dotenv import load_dotenv
 load_dotenv()
-from huggingface_hub import login
 login(token=os.getenv("HF_TOKEN"))
-import ast
-from bixbench import ZeroshotBaseline, AgentInput
-import argparse
-import sys
-from itertools import islice
-import asyncio
 
 HF_URL = "futurehouse/BixBench-internal"
 
@@ -127,7 +127,8 @@ async def main():
         results = await evaluate(
             baseline_agent, args.num_examples, args.output_dir, output_file
         )
-        print(f"Evaluation completed and results saved to {args.output_dir} folder")
+        print(
+            f"Evaluation completed and results saved to {args.output_dir} folder")
     except Exception as e:
         print(f"Error: {str(e)}", file=sys.stderr)
         sys.exit(1)

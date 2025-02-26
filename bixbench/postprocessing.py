@@ -33,7 +33,8 @@ async def grade_outputs():
         "4o_open_image": "4o_mcq_image_no_insufficient",
     }
 
-    open_eval_df = utils.update_eval_df(eval_df, insufficient=False, run_map=None)
+    open_eval_df = utils.update_eval_df(
+        eval_df, insufficient=False, run_map=None)
     insufficient_eval_df = utils.update_eval_df(
         eval_df, insufficient=True, run_map=insufficient_map
     )
@@ -49,7 +50,8 @@ async def grade_outputs():
     batch = open_eval_df["prompt"].tolist()
     results = await utils.process_batch(batch, "gpt-4o", max_concurrent=100)
     open_eval_df["correct"] = results
-    open_eval_df["correct"] = open_eval_df.correct.apply(lambda x: 1 if x == "1" else 0)
+    open_eval_df["correct"] = open_eval_df.correct.apply(
+        lambda x: 1 if x == "1" else 0)
     open_eval_df.to_csv("bixbench_results/open_eval_df.csv", index=False)
     print(open_eval_df.groupby("run_name").correct.mean())
 
@@ -80,7 +82,8 @@ async def grade_outputs():
 
 
 async def run_majority_vote():
-    insufficient_eval_df = pd.read_csv("bixbench_results/insufficient_eval_df.csv")
+    insufficient_eval_df = pd.read_csv(
+        "bixbench_results/insufficient_eval_df.csv")
     no_insufficient_eval_df = pd.read_csv(
         "bixbench_results/no_insufficient_eval_df.csv"
     )
@@ -97,13 +100,15 @@ async def run_majority_vote():
     for run_name in maj_vote_df.run_name.unique():
         print("RUN NAME", run_name)
         grouped_df = maj_vote_df[maj_vote_df.run_name == run_name].copy()
-        grouped_df["agent_mcq_answer"] = grouped_df["agent_mcq_answer"].fillna("X")
+        grouped_df["agent_mcq_answer"] = grouped_df["agent_mcq_answer"].fillna(
+            "X")
         grouped_df = grouped_df.groupby("uuid").agg(list)
         grouped_df["correct_letter"] = grouped_df["correct_letter"].apply(
             lambda x: x[0]
         )
         grouped_df = grouped_df.dropna()
-        k_values, means, stds = utils.run_majority_voting(grouped_df, range(1, 10), 10)
+        k_values, means, stds = utils.run_majority_voting(
+            grouped_df, range(1, 10), 10)
         run_results[run_name] = (k_values, means, stds)
 
     r1 = {
@@ -142,7 +147,8 @@ async def compare_capsule_mode():
 
     # Prepare data
     tmp = pd.concat(
-        [dfs["insufficient"].copy(), dfs["no_insufficient"].copy(), dfs["open"].copy()]
+        [dfs["insufficient"].copy(), dfs["no_insufficient"].copy(),
+         dfs["open"].copy()]
     )
     tmp["format"] = tmp["run_name"].apply(
         lambda x: (
@@ -155,7 +161,8 @@ async def compare_capsule_mode():
             )
         )
     )
-    tmp["model"] = tmp["run_name"].apply(lambda x: model1 if "4o" in x else model2)
+    tmp["model"] = tmp["run_name"].apply(
+        lambda x: model1 if "4o" in x else model2)
     tmp = tmp[~tmp.run_name.str.contains("no_image")]
 
     # Calculate means and confidence intervals

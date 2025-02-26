@@ -1,27 +1,28 @@
+from bixbench.utils import AgentInput, EvalMode
+from bixbench.zero_shot import ZeroshotBaseline
 import pytest
-from unittest.mock import  patch, MagicMock
+from unittest.mock import patch, MagicMock
 import sys
 sys.path.append("../")
-from bixbench.zero_shot import ZeroshotBaseline
-from bixbench.utils import  AgentInput, EvalMode
 
 
 class TestZeroshotBaseline:
     @pytest.fixture
     def mock_litellm_response(self):
         mock_response = MagicMock()
-        mock_response.model_dump.return_value = {"text": "This is a mock response. Answer is: <answer>A</answer>."}
+        mock_response.model_dump.return_value = {
+            "text": "This is a mock response. Answer is: <answer>A</answer>."}
         return mock_response
 
     @pytest.fixture
     def mcq_input(self):
         return AgentInput(
-            id="8204598f-b86a-4578-ab32-9d880c168718", 
+            id="8204598f-b86a-4578-ab32-9d880c168718",
             question="What is the capital of France?",
             target="Paris",
             choices=["London", "Paris", "Berlin", "Madrid"]
         )
-        
+
     @pytest.fixture
     def open_ended_input(self):
         return AgentInput(
@@ -30,7 +31,7 @@ class TestZeroshotBaseline:
             target="Plants convert sunlight into energy through photosynthesis...",
             choices=[]
         )
-    
+
     def test_init(self):
         """Test initialization of ZeroshotBaseline with various parameters"""
         # Default initialization
@@ -43,7 +44,7 @@ class TestZeroshotBaseline:
         assert baseline.with_refusal is True
         assert baseline.llm_client.config["name"] == "gpt-4o"
         assert baseline.llm_client.config["temperature"] == 1.0
-        
+
         # Custom temperature and additional kwargs
         baseline = ZeroshotBaseline(
             eval_mode=EvalMode.openanswer,
@@ -63,22 +64,24 @@ class TestZeroshotBaseline:
             eval_mode=EvalMode.mcq,
             with_refusal=True
         )
-        assert baseline._get_prompt_template() == pytest.importorskip("bixbench.prompts").MCQ_PROMPT_TEMPLATE_WITH_REFUSAL
-        
+        assert baseline._get_prompt_template() == pytest.importorskip(
+            "bixbench.prompts").MCQ_PROMPT_TEMPLATE_WITH_REFUSAL
+
         # MCQ without refusal
         baseline = ZeroshotBaseline(
             eval_mode=EvalMode.mcq,
             with_refusal=False
         )
-        assert baseline._get_prompt_template() == pytest.importorskip("bixbench.prompts").MCQ_PROMPT_TEMPLATE_WITHOUT_REFUSAL
-        
+        assert baseline._get_prompt_template() == pytest.importorskip(
+            "bixbench.prompts").MCQ_PROMPT_TEMPLATE_WITHOUT_REFUSAL
+
         # Open-ended
         baseline = ZeroshotBaseline(
             eval_mode=EvalMode.openanswer,
             with_refusal=True  # This shouldn't matter for open-ended
         )
-        assert baseline._get_prompt_template() == pytest.importorskip("bixbench.prompts").OPEN_ENDED_PROMPT_TEMPLATE
-
+        assert baseline._get_prompt_template() == pytest.importorskip(
+            "bixbench.prompts").OPEN_ENDED_PROMPT_TEMPLATE
 
     def test_prep_query_open_ended(self, open_ended_input):
         """Test query preparation for open-ended mode"""
@@ -87,11 +90,11 @@ class TestZeroshotBaseline:
             with_refusal=False  # Shouldn't matter for open-ended
         )
         baseline.input = open_ended_input
-        
+
         query, target, unsure = baseline._prep_query()
-        
+
         assert open_ended_input.question in query
         assert target == open_ended_input.target
         assert unsure == "empty"
 
-    #todo: add test for prep_query for mcq mode
+    # todo: add test for prep_query for mcq mode

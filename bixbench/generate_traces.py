@@ -109,7 +109,8 @@ class TraceGenerator:
         shutil.unpack_archive(zip_path, extract_dir)
 
         # Get the Data folder path
-        data_folder = next(p for p in extract_dir.iterdir() if "Data" in p.name)
+        data_folder = next(p for p in extract_dir.iterdir()
+                           if "Data" in p.name)
 
         # Move contents of Data folder to parent directory
         for item in data_folder.iterdir():
@@ -184,7 +185,8 @@ class TraceGenerator:
             )
         )
         answer = {i.question_id: i.ideal_answer for i in processed_questions}
-        work_dir = (self.config["local_workspace_dir"] / capsule["uuid"]).absolute()
+        work_dir = (self.config["local_workspace_dir"] /
+                    capsule["uuid"]).absolute()
         work_dir.mkdir(parents=True, exist_ok=True)
         local_capsule_data_path = self.config["local_data_folder"] / capsule[
             "data_folder"
@@ -225,8 +227,9 @@ class TraceGenerator:
 
         # Process environments in batches
         for i in range(0, len(bixbench), self.config["batch_size"]):
-            batch = bixbench[i : i + self.config["batch_size"]]
-            environments = [self.environment_factory(capsule) for capsule in batch]
+            batch = bixbench[i: i + self.config["batch_size"]]
+            environments = [self.environment_factory(
+                capsule) for capsule in batch]
 
             # TODO: Create simple rollout manager that does not use LDP
             trajectories = await rollout.sample_trajectories(
