@@ -1,10 +1,12 @@
 import asyncio
 import ast
 import pandas as pd
-import postprocessing_utils as utils
-import plotting_utils
 import nbformat
 import json
+
+from fhda.utils import view_notebook
+import postprocessing_utils as utils
+import plotting_utils
 
 pd.options.mode.chained_assignment = None
 
@@ -37,7 +39,7 @@ def load_raw_data(path: str):
     # Convert json notebook to markdown for postprocessing
     if "nb" in df.columns and not "nb_md" in df.columns:
         df_md = pd.DataFrame(
-            df["nb"].apply(lambda x: utils.view_notebook(x.cells, "python")).tolist(),
+            df["nb"].apply(lambda x: view_notebook(x.cells, "python")).tolist(),
             columns=["md_notebook", "md_images"],
         )
         df[["md_notebook", "md_images"]] = df_md
