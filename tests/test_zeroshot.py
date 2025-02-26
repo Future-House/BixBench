@@ -80,16 +80,6 @@ class TestZeroshotBaseline:
         assert baseline._get_prompt_template() == pytest.importorskip("bixbench.prompts").OPEN_ENDED_PROMPT_TEMPLATE
 
 
-    """    @pytest.fixture
-    def mock_randomize_choices(self):
-        with patch("bixbench.utils.randomize_choices") as mock:
-            mock.return_value = (
-                ["A. London", "B. Berlin", "C. Paris", "D. Insufficient information to answer the question","E. Madrid"], 
-                "C", 
-                "D"
-            )
-            yield mock
-
     def test_prep_query_mcq(self, mcq_input):
         "Test query preparation for MCQ mode"
 
@@ -117,7 +107,7 @@ class TestZeroshotBaseline:
     
         assert answer == "C"
         assert unsure == "D"
-        assert 'A. London' in distractors"""
+        assert 'A. London' in distractors
 
     def test_prep_query_open_ended(self, open_ended_input):
         """Test query preparation for open-ended mode"""
