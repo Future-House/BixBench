@@ -57,7 +57,7 @@ dev = [
 run_expt = 'scripts.configurable:_run_expt'
 
 [tool.setuptools]
-package-dir = {"" = "src"}
+package-dir = {"" = "bixbench"}
 
 [tool.setuptools.packages.find]
-where = ["src"]
+where = ["bixbench"]
