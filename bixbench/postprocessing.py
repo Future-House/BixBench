@@ -3,14 +3,18 @@ import ast
 import pandas as pd
 import nbformat
 import json
+import argparse
+import os
 
 from fhda.utils import view_notebook
-import postprocessing_utils as utils
-import plotting_utils
+# Import these from local directory - adjust path if needed
+from bixbench import postprocessing_utils as utils
+from bixbench import plotting_utils
 
 pd.options.mode.chained_assignment = None
+# If true, save and load intermediate results to avoid re-running the same steps
 
-def load_raw_data(path: str):
+def load_raw_data(path: str) -> pd.DataFrame:
     """
     Load raw data from a CSV file and process specific columns.
     
@@ -20,7 +24,6 @@ def load_raw_data(path: str):
     Returns:
         pd.DataFrame: Processed DataFrame with converted column types
     """
-    print("Loading raw data from", path)
     df = pd.read_csv(path)
     mapping = {
         "agent_answer": utils.load_answer,
@@ -43,11 +46,10 @@ def load_raw_data(path: str):
             columns=["md_notebook", "md_images"],
         )
         df[["md_notebook", "md_images"]] = df_md
-    print("Loaded raw data from", path)
     return df
 
 
-async def process_trajectories(df: pd.DataFrame):
+async def process_trajectories(df: pd.DataFrame, checkpointing: bool = True) -> pd.DataFrame:
     """
     Create a gradable dataframe from a raw dataframe of trajectories.
     
@@ -57,11 +59,8 @@ async def process_trajectories(df: pd.DataFrame):
     Args:
         df (pd.DataFrame): Raw data containing model trajectories
     """
-    print("Creating eval df")
     eval_df = utils.create_eval_df(df)
-    print("Running eval loop")
     eval_df = await utils.run_eval_loop(eval_df)
-    print("Running MCQ eval loop")
 
     eval_df.to_csv("bixbench_results/eval_loop_results.csv", index=False)
     # Create correct column for open ended questions
@@ -77,31 +76,33 @@ async def process_trajectories(df: pd.DataFrame):
         eval_df.loc[eval_df.question_format == "mcq", "llm_answer"]
         == eval_df.loc[eval_df.question_format == "mcq", "correct_letter"]
     )
-    print("Grouping by run name")
-    print(eval_df.groupby("run_name").correct.mean())
-    eval_df.to_csv("bixbench_results/all_eval_df.csv", index=False)
+    if checkpointing:
+        eval_df.to_csv("bixbench_results/eval_df.csv", index=False)
+    return eval_df
 
 
-async def run_majority_vote():
+async def run_majority_vote(eval_df: pd.DataFrame, k_value: int = 10) -> None:
     """
+    DISCLAIMER: This function is highly tailored to the BixBench paper requirements.
+    It is not designed to be used as a general function for comparing model performance.
+
     Implement majority voting evaluation across different model configurations.
     
     This function reads evaluation data, performs majority voting analysis for
     multiple choice questions, and produces visualization comparing different model
     configurations with and without specific features.
     """
-    eval_df = pd.read_csv("bixbench_results/all_eval_df.csv")
-
-    # Config
-    k_value = 3
-
+    # Only run majority vote on mcq questions
     maj_vote_df = eval_df[eval_df.question_format == "mcq"].copy()
+    
+    if maj_vote_df.empty:
+        print("No MCQ questions found, skipping majority vote")
+        return
 
     # Store results for all runs
     run_results = {}
 
     for run_name in maj_vote_df.run_name.unique():
-        print("RUN NAME", run_name)
         grouped_df = maj_vote_df[maj_vote_df.run_name == run_name].copy()
         grouped_df["llm_answer"] = grouped_df["llm_answer"].fillna("X")
         grouped_df = grouped_df.groupby("uuid").agg(list)
@@ -113,7 +114,7 @@ async def run_majority_vote():
             grouped_df, range(1, k_value), k_value
         )
         run_results[run_name] = (k_values, means, stds)
-    print(run_results)
+
     r1 = {
         "claude_mcq_image_with_refusal": "Claude with vision",
         "claude_mcq_no_image_with_refusal": "Claude without vision",
@@ -140,39 +141,39 @@ async def run_majority_vote():
     )
 
 
-async def compare_capsule_mode():
+async def compare_capsule_mode(eval_df: pd.DataFrame) -> None:
     """
+    DISCLAIMER: This function is highly tailored to the BixBench paper requirements.
+    It is not designed to be used as a general function for comparing model performance.
+
     Compare performance between different model architectures.
     
     This function analyzes and visualizes the performance differences between
     GPT-4o and Claude models across different question formats.
     """
+
     # Define model names for clarity
     model1, model2 = "gpt-4o", "claude-3-5-sonnet"
 
     # Prepare data
-    tmp = pd.read_csv("bixbench_results/all_eval_df.csv")
-    tmp["correct"] = tmp["correct"].astype(bool)
-
-    tmp["format"] = tmp["run_name"].apply(
+    eval_df["format"] = eval_df["run_name"].apply(
         lambda x: (
             "open"
             if "open" in x
             else ("mcq_with_refusal" if "with_refusal" in x else "mcq_without_refusal")
         )
     )
-    tmp["model"] = tmp["run_name"].apply(lambda x: model1 if "4o" in x else model2)
-    tmp = tmp[~tmp.run_name.str.contains("no_image")]
+    eval_df["model"] = eval_df["run_name"].apply(lambda x: model1 if "4o" in x else model2)
+    eval_df = eval_df[~eval_df.run_name.str.contains("no_image")]
 
     # Calculate means and confidence intervals
-    results = calculate_results(tmp)
-    print(results)
+    results = calculate_results(eval_df)
 
     # Plot results
     plotting_utils.plot_model_comparison(results, model1, model2)
 
 
-def calculate_results(df):
+def calculate_results(df: pd.DataFrame) -> list[dict]:
     """
     Calculate means and confidence intervals for each model and format.
     
@@ -203,69 +204,35 @@ def calculate_results(df):
     return results
 
 
-async def compare_capsule_mode_with_refusal():
-    """
-    Compare models with refusal mode enabled.
-    
-    This function loads evaluation data, processes it to compare how different models
-    perform when the refusal option is available, and visualizes the results.
-    """
-    # Define model names for clarity
-    model1, model2 = "gpt-4o", "claude-3-5-sonnet"
-
-    # Prepare data
-    tmp = pd.read_csv("bixbench_results/all_eval_df.csv")
-    tmp["correct"] = tmp["correct"].astype(bool)
-
-    # Filter to include only runs with refusal option enabled
-    tmp = tmp[tmp.run_name.str.contains("with_refusal")]
-    
-    tmp["model"] = tmp["run_name"].apply(lambda x: model1 if "4o" in x else model2)
-    tmp["vision"] = tmp["run_name"].apply(lambda x: "With Vision" if "image" in x and "no_image" not in x else "Without Vision")
-    
-    # Calculate means and confidence intervals
-    results = calculate_results_for_refusal(tmp)
-    print(results)
-
-    # Plot results
-    plotting_utils.plot_refusal_comparison(results, model1, model2)
-
-
-def calculate_results_for_refusal(df):
-    """
-    Calculate means and confidence intervals for refusal mode comparison.
-    
-    Args:
-        df (pd.DataFrame): DataFrame containing model evaluation results
-        
-    Returns:
-        list: List of dictionaries containing statistical results for each model and vision mode
-    """
-    results = []
-    for model in df["model"].unique():
-        for vision in ["With Vision", "Without Vision"]:
-            mask = (df["model"] == model) & (df["vision"] == vision)
-            scores = df[mask]["correct"]
-            if len(scores) > 0:
-                mean = scores.mean()
-                n = len(scores)
-                ci_low, ci_high = utils.wilson_ci(mean, n)
-                results.append(
-                    {
-                        "model": model,
-                        "vision": vision,
-                        "mean": mean,
-                        "ci_low": ci_low,
-                        "ci_high": ci_high,
-                    }
-                )
-    return results
-
-
 if __name__ == "__main__":
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description="Process BixBench evaluation data")
+    parser.add_argument(
+        "--data_path", 
+        type=str, 
+        default="bixbench_results/raw_trajectory_data.csv",
+        help="Path to the raw trajectory data CSV file"
+    )
+    parser.add_argument(
+        "--checkpointing", 
+        action="store_true", 
+        default=True,
+        help="Whether to save and load intermediate results"
+    )
+    args = parser.parse_args()
+    
     # Load raw trajectory data
-    data = load_raw_data("bixbench_results/raw_trajectory_data.csv")
-    asyncio.run(process_trajectories(data))
-    asyncio.run(run_majority_vote())
-    asyncio.run(compare_capsule_mode())
-    asyncio.run(compare_capsule_mode_with_refusal())
+    os.makedirs("bixbench_results", exist_ok=True)
+    data = load_raw_data(args.data_path)
+    
+    # Process trajectories and save eval df
+    eval_df = asyncio.run(process_trajectories(data, checkpointing=args.checkpointing))
+
+    if args.checkpointing:
+        eval_df = pd.read_csv("bixbench_results/eval_df.csv")
+        eval_df["correct"] = eval_df["correct"].astype(bool)
+
+    # Run majority vote
+    asyncio.run(run_majority_vote(eval_df, k_value=10))
+    # Compare capsule mode
+    asyncio.run(compare_capsule_mode(eval_df))

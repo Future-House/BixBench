@@ -1,3 +1,6 @@
+# DISCLAIMER: This file is highly tailored to the BixBench paper requirements.
+# It is not designed to be used as a general function for plotting model performance.
+
 import json
 from typing import Dict, List, Tuple
 
