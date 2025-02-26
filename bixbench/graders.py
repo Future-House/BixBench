@@ -1,6 +1,8 @@
-from .prompts import OPEN_ENDED_GRADING_PROMPT
 import re
+
 from aviary.core import Message
+
+from .prompts import OPEN_ENDED_GRADING_PROMPT
 
 
 def grade_mcq_answer(target, predicted, unsure):
@@ -13,10 +15,7 @@ def grade_mcq_answer(target, predicted, unsure):
     # Only for MCQ + w/resusal setting.Used to compute precision
     refusal = predicted != unsure
 
-    if correct:
-        grade = 1
-    else:
-        grade = 0
+    grade = 1 if correct else 0
     return grade, correct, refusal
 
 

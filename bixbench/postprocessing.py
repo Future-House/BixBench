@@ -1,22 +1,24 @@
-import asyncio
 import ast
-import pandas as pd
-import nbformat
+import asyncio
 import json
+import operator
 
-from fhda.utils import view_notebook
-import postprocessing_utils as utils
+import nbformat
+import pandas as pd
 import plotting_utils
+import postprocessing_utils as utils
+from fhda.utils import view_notebook
 
 pd.options.mode.chained_assignment = None
+
 
 def load_raw_data(path: str):
     """
     Load raw data from a CSV file and process specific columns.
-    
+
     Args:
         path (str): Path to the CSV file containing raw data
-        
+
     Returns:
         pd.DataFrame: Processed DataFrame with converted column types
     """
@@ -37,7 +39,7 @@ def load_raw_data(path: str):
             df[col] = df[col].apply(func)
 
     # Convert json notebook to markdown for postprocessing
-    if "nb" in df.columns and not "nb_md" in df.columns:
+    if "nb" in df.columns and "nb_md" not in df.columns:
         df_md = pd.DataFrame(
             df["nb"].apply(lambda x: view_notebook(x.cells, "python")).tolist(),
             columns=["md_notebook", "md_images"],
@@ -50,10 +52,10 @@ def load_raw_data(path: str):
 async def process_trajectories(df: pd.DataFrame):
     """
     Create a gradable dataframe from a raw dataframe of trajectories.
-    
+
     This function processes the raw data, runs evaluation loops, and saves
     the results to CSV files for further analysis.
-    
+
     Args:
         df (pd.DataFrame): Raw data containing model trajectories
     """
@@ -67,7 +69,7 @@ async def process_trajectories(df: pd.DataFrame):
     # Create correct column for open ended questions
     eval_df.loc[eval_df.question_format == "open", "correct"] = eval_df.loc[
         eval_df.question_format == "open", "llm_answer"
-    ].apply(lambda x: True if x == "1" else False)
+    ].apply(lambda x: x == "1")
     # Extract XML from LLM MCQ answers
     eval_df.loc[eval_df.question_format == "mcq", "llm_answer"] = eval_df.loc[
         eval_df.question_format == "mcq", "llm_answer"
@@ -85,7 +87,7 @@ async def process_trajectories(df: pd.DataFrame):
 async def run_majority_vote():
     """
     Implement majority voting evaluation across different model configurations.
-    
+
     This function reads evaluation data, performs majority voting analysis for
     multiple choice questions, and produces visualization comparing different model
     configurations with and without specific features.
@@ -106,7 +108,7 @@ async def run_majority_vote():
         grouped_df["llm_answer"] = grouped_df["llm_answer"].fillna("X")
         grouped_df = grouped_df.groupby("uuid").agg(list)
         grouped_df["correct_letter"] = grouped_df["correct_letter"].apply(
-            lambda x: x[0]
+            operator.itemgetter(0)
         )
         grouped_df = grouped_df.dropna()
         k_values, means, stds = utils.run_majority_voting(
@@ -143,7 +145,7 @@ async def run_majority_vote():
 async def compare_capsule_mode():
     """
     Compare performance between different model architectures.
-    
+
     This function analyzes and visualizes the performance differences between
     GPT-4o and Claude models across different question formats.
     """
@@ -175,10 +177,10 @@ async def compare_capsule_mode():
 def calculate_results(df):
     """
     Calculate means and confidence intervals for each model and format.
-    
+
     Args:
         df (pd.DataFrame): DataFrame containing model evaluation results
-        
+
     Returns:
         list: List of dictionaries containing statistical results for each model and format
     """
@@ -206,7 +208,7 @@ def calculate_results(df):
 async def compare_capsule_mode_with_refusal():
     """
     Compare models with refusal mode enabled.
-    
+
     This function loads evaluation data, processes it to compare how different models
     perform when the refusal option is available, and visualizes the results.
     """
@@ -219,10 +221,14 @@ async def compare_capsule_mode_with_refusal():
 
     # Filter to include only runs with refusal option enabled
     tmp = tmp[tmp.run_name.str.contains("with_refusal")]
-    
+
     tmp["model"] = tmp["run_name"].apply(lambda x: model1 if "4o" in x else model2)
-    tmp["vision"] = tmp["run_name"].apply(lambda x: "With Vision" if "image" in x and "no_image" not in x else "Without Vision")
-    
+    tmp["vision"] = tmp["run_name"].apply(
+        lambda x: (
+            "With Vision" if "image" in x and "no_image" not in x else "Without Vision"
+        )
+    )
+
     # Calculate means and confidence intervals
     results = calculate_results_for_refusal(tmp)
     print(results)
@@ -234,10 +240,10 @@ async def compare_capsule_mode_with_refusal():
 def calculate_results_for_refusal(df):
     """
     Calculate means and confidence intervals for refusal mode comparison.
-    
+
     Args:
         df (pd.DataFrame): DataFrame containing model evaluation results
-        
+
     Returns:
         list: List of dictionaries containing statistical results for each model and vision mode
     """

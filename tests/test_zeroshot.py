@@ -1,8 +1,10 @@
-from bixbench.utils import AgentInput, EvalMode
-from bixbench.zero_shot import ZeroshotBaseline
-import pytest
-from unittest.mock import patch, MagicMock
 import sys
+from unittest.mock import MagicMock
+
+import pytest
+
+from bixbench.utils import AgentInput, EvalMode, parse_response, randomize_choices
+from bixbench.zero_shot import ZeroshotBaseline
 
 sys.path.append("../")
 
@@ -35,7 +37,7 @@ class TestZeroshotBaseline:
         )
 
     def test_init(self):
-        """Test initialization of ZeroshotBaseline with various parameters"""
+        """Test initialization of ZeroshotBaseline with various parameters."""
         # Default initialization
         baseline = ZeroshotBaseline(
             eval_mode=EvalMode.mcq, with_refusal=True, model_name="gpt-4o"
@@ -58,7 +60,7 @@ class TestZeroshotBaseline:
         assert baseline.llm_client.config["temperature"] == 0.7
 
     def test_get_prompt_template(self):
-        """Test the correct prompt template is returned based on mode and refusal setting"""
+        """Test the correct prompt template is returned based on mode and refusal setting."""
         # MCQ with refusal
         baseline = ZeroshotBaseline(eval_mode=EvalMode.mcq, with_refusal=True)
         assert (
@@ -86,7 +88,7 @@ class TestZeroshotBaseline:
         )
 
     def test_prep_query_open_ended(self, open_ended_input):
-        """Test query preparation for open-ended mode"""
+        """Test query preparation for open-ended mode."""
         baseline = ZeroshotBaseline(
             eval_mode=EvalMode.openanswer,
             with_refusal=False,  # Shouldn't matter for open-ended
@@ -99,4 +101,73 @@ class TestZeroshotBaseline:
         assert target == open_ended_input.target
         assert unsure == "empty"
 
-    # todo: add test for prep_query for mcq mode
+    # TODO: add test for prep_query for mcq mode
+# testing utils
+
+
+@pytest.mark.parametrize(
+    ("ideal", "distractors", "with_refusal", "expected_length"),
+    [
+        pytest.param("Paris", ["London", "Berlin",
+                               "Madrid"], True, 5, id="with_refusal"),
+        pytest.param("Paris", ["London", "Berlin",
+                               "Madrid"], False, 4, id="without_refusal"),
+    ]
+)
+def test_randomize_choices(ideal: str, distractors: list[str], with_refusal: bool, expected_length: int):
+
+    shuffled_choices, answer, unsure = randomize_choices(
+        ideal, distractors, with_refusal)
+    print(shuffled_choices)
+    # 3 distractors + target +/- refusal option
+    assert len(shuffled_choices) == expected_length
+    if with_refusal:
+        assert any(
+            "Insufficient information to answer the question" in choice for choice in shuffled_choices)
+    else:
+        assert unsure == "empty"
+
+
+@pytest.mark.parametrize(
+    ("text", "eval_mode", "tag", "expected"),
+    [
+        pytest.param(
+            "This is a mock response. Answer is: <answer>A</answer>.",
+            EvalMode.mcq,
+            "answer",
+            "A",
+            id="simple",
+        ),
+        pytest.param(
+            "This is a mock response. Answer is: <answer> A </answer>.",
+            EvalMode.mcq,
+            "answer",
+            "A",
+            id="with_spaces",
+        ),
+
+        pytest.param(
+            "This is a mock response. Answer is: <answer>a </answer>.",
+            EvalMode.mcq,
+            "answer",
+            "A",
+            id="lowercase",
+        ),
+        pytest.param(
+            "This is a mock response. Answer is: <answer> Anything is okay </answer>",
+            EvalMode.openanswer,
+            "answer",
+            " Anything is okay ",
+            id="openanswer",
+        ),
+        pytest.param(
+            "This is a mock response. Answer is: <response>this is the response</response>.",
+            EvalMode.openanswer,
+            "response",
+            "this is the response",
+            id="response tag",
+        )
+    ],
+)
+def test_parse_response(text: str, eval_mode: EvalMode, tag: str, expected: str):
+    assert parse_response(text=text, tag=tag, eval_mode=eval_mode) == expected
