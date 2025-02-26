@@ -7,13 +7,17 @@ import nbformat
 import json
 
 pd.options.mode.chained_assignment = None
-# Base everything off raw data and run_name.unique()
-# In raw data, include whether there is refusal option or not
-# In raw data, include capsule mode
-# In raw data, include model
-
 
 def load_raw_data(path: str):
+    """
+    Load raw data from a CSV file and process specific columns.
+    
+    Args:
+        path (str): Path to the CSV file containing raw data
+        
+    Returns:
+        pd.DataFrame: Processed DataFrame with converted column types
+    """
     print("Loading raw data from", path)
     df = pd.read_csv(path)
     mapping = {
@@ -42,7 +46,15 @@ def load_raw_data(path: str):
 
 
 async def process_trajectories(df: pd.DataFrame):
-    """Create a gradable dataframe from a raw dataframe of trajectories"""
+    """
+    Create a gradable dataframe from a raw dataframe of trajectories.
+    
+    This function processes the raw data, runs evaluation loops, and saves
+    the results to CSV files for further analysis.
+    
+    Args:
+        df (pd.DataFrame): Raw data containing model trajectories
+    """
     print("Creating eval df")
     eval_df = utils.create_eval_df(df)
     print("Running eval loop")
@@ -69,6 +81,13 @@ async def process_trajectories(df: pd.DataFrame):
 
 
 async def run_majority_vote():
+    """
+    Implement majority voting evaluation across different model configurations.
+    
+    This function reads evaluation data, performs majority voting analysis for
+    multiple choice questions, and produces visualization comparing different model
+    configurations with and without specific features.
+    """
     eval_df = pd.read_csv("bixbench_results/all_eval_df.csv")
 
     # Config
@@ -120,6 +139,12 @@ async def run_majority_vote():
 
 
 async def compare_capsule_mode():
+    """
+    Compare performance between different model architectures.
+    
+    This function analyzes and visualizes the performance differences between
+    GPT-4o and Claude models across different question formats.
+    """
     # Define model names for clarity
     model1, model2 = "gpt-4o", "claude-3-5-sonnet"
 
@@ -146,7 +171,15 @@ async def compare_capsule_mode():
 
 
 def calculate_results(df):
-    """Calculate means and confidence intervals for each model and format."""
+    """
+    Calculate means and confidence intervals for each model and format.
+    
+    Args:
+        df (pd.DataFrame): DataFrame containing model evaluation results
+        
+    Returns:
+        list: List of dictionaries containing statistical results for each model and format
+    """
     results = []
     for model in df["model"].unique():
         for fmt in ["open", "mcq_with_refusal", "mcq_without_refusal"]:
@@ -160,6 +193,65 @@ def calculate_results(df):
                     {
                         "model": model,
                         "format": fmt,
+                        "mean": mean,
+                        "ci_low": ci_low,
+                        "ci_high": ci_high,
+                    }
+                )
+    return results
+
+
+async def compare_capsule_mode_with_refusal():
+    """
+    Compare models with refusal mode enabled.
+    
+    This function loads evaluation data, processes it to compare how different models
+    perform when the refusal option is available, and visualizes the results.
+    """
+    # Define model names for clarity
+    model1, model2 = "gpt-4o", "claude-3-5-sonnet"
+
+    # Prepare data
+    tmp = pd.read_csv("bixbench_results/all_eval_df.csv")
+    tmp["correct"] = tmp["correct"].astype(bool)
+
+    # Filter to include only runs with refusal option enabled
+    tmp = tmp[tmp.run_name.str.contains("with_refusal")]
+    
+    tmp["model"] = tmp["run_name"].apply(lambda x: model1 if "4o" in x else model2)
+    tmp["vision"] = tmp["run_name"].apply(lambda x: "With Vision" if "image" in x and "no_image" not in x else "Without Vision")
+    
+    # Calculate means and confidence intervals
+    results = calculate_results_for_refusal(tmp)
+    print(results)
+
+    # Plot results
+    plotting_utils.plot_refusal_comparison(results, model1, model2)
+
+
+def calculate_results_for_refusal(df):
+    """
+    Calculate means and confidence intervals for refusal mode comparison.
+    
+    Args:
+        df (pd.DataFrame): DataFrame containing model evaluation results
+        
+    Returns:
+        list: List of dictionaries containing statistical results for each model and vision mode
+    """
+    results = []
+    for model in df["model"].unique():
+        for vision in ["With Vision", "Without Vision"]:
+            mask = (df["model"] == model) & (df["vision"] == vision)
+            scores = df[mask]["correct"]
+            if len(scores) > 0:
+                mean = scores.mean()
+                n = len(scores)
+                ci_low, ci_high = utils.wilson_ci(mean, n)
+                results.append(
+                    {
+                        "model": model,
+                        "vision": vision,
                         "mean": mean,
                         "ci_low": ci_low,
                         "ci_high": ci_high,
