@@ -29,8 +29,7 @@ jobs:
     
     - name: Run Lint
       run: |
-        python -m autopep8 --diff --recursive .
-        python -m autopep8 --exit-code --recursive .
+        python -m autopep8 --diff --exit-code --recursive .
 
   test:
     runs-on: ubuntu-latest
