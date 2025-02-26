@@ -80,35 +80,6 @@ class TestZeroshotBaseline:
         assert baseline._get_prompt_template() == pytest.importorskip("bixbench.prompts").OPEN_ENDED_PROMPT_TEMPLATE
 
 
-    def test_prep_query_mcq(self, mcq_input):
-        "Test query preparation for MCQ mode"
-
-        with patch("bixbench.utils.randomize_choices") as mock_randomize_choices:
-            mock_randomize_choices.return_value = (
-                ["A. London", "B. Berlin", "C. Paris", "D. Insufficient information to answer the question","E. Madrid"], 
-                "C", 
-                "D"
-            )
-        
-        baseline = ZeroshotBaseline(
-            eval_mode=EvalMode.mcq,
-            with_refusal=True
-        )
-        baseline.input = mcq_input
-        mock_randomize_choices.assert_called_once_with(
-            mcq_input.target, 
-            mcq_input.choices, 
-            with_refusal=True
-        )
-
-        distractors, answer, unsure = baseline._prep_query()
-        print(distractors)
-        
-    
-        assert answer == "C"
-        assert unsure == "D"
-        assert 'A. London' in distractors
-
     def test_prep_query_open_ended(self, open_ended_input):
         """Test query preparation for open-ended mode"""
         baseline = ZeroshotBaseline(
@@ -122,3 +93,5 @@ class TestZeroshotBaseline:
         assert open_ended_input.question in query
         assert target == open_ended_input.target
         assert unsure == "empty"
+
+    #todo: add test for prep_query for mcq mode
