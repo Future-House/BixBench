@@ -1,4 +1,3 @@
-# Standard library imports
 import copy
 import json
 import ast
@@ -9,7 +8,6 @@ import re
 from asyncio import Semaphore
 from typing import Dict, List, Tuple, Any, Optional
 
-# Third-party imports
 import litellm
 import nbconvert
 import nbformat
@@ -19,6 +17,7 @@ from tqdm import tqdm
 
 # Local imports
 import prompts
+
 litellm.set_verbose = False
 
 
@@ -75,25 +74,21 @@ async def send_message_to_llm(
     message: List[Dict[str, str]], model: str, sem: Semaphore
 ) -> Any:
     async with sem:
-        #todo use lmi (FH wrapper) LiteLLMModel instead of litellm
         response = await litellm.acompletion(model=model, messages=message)
         return response
 
 
-async def run_mcq_eval_loop(eval_df):
-    eval_df = eval_df.copy()
-    gpt_batch = eval_df.loc[eval_df.run_name.str.contains("4o"), "content"].tolist()
-    gpt_results = await process_batch(gpt_batch, "gpt-4o", max_concurrent=100)
-    claude_batch = eval_df.loc[
-        eval_df.run_name.str.contains("claude"), "content"
-    ].tolist()
-    claude_results = await process_batch(
-        claude_batch, "claude-3-5-sonnet-20241022", max_concurrent=100
-    )
-    eval_df.loc[eval_df.run_name.str.contains("4o"), "agent_mcq_answer"] = gpt_results
-    eval_df.loc[eval_df.run_name.str.contains("claude"), "agent_mcq_answer"] = (
-        claude_results
-    )
+models = {
+    "4o": "gpt-4o",
+    "claude": "claude-3-5-sonnet-20241022",
+}
+
+
+async def run_eval_loop(eval_df, max_concurrent=100):
+    for model, llm_name in models.items():
+        batch = eval_df.loc[eval_df.run_name.str.contains(model), "content"].tolist()
+        results = await process_batch(batch, llm_name, max_concurrent=max_concurrent)
+        eval_df.loc[eval_df.run_name.str.contains(model), "llm_answer"] = results
     return eval_df
 
 
@@ -203,21 +198,33 @@ async def process_single(prompt: str, model: str, sem: Semaphore) -> Dict[str, A
             return None
 
 
+async def process_with_progress(prompt, model, sem, pbar):
+    "Callback function to update the progress bar"
+    try:
+        result = await process_single(prompt, model, sem)
+        return result
+    finally:
+        pbar.update(1)
+
+
 async def process_batch(
     prompts: List[Dict[str, Any]], model: str, max_concurrent: int = 5
 ) -> List[Dict[str, Any]]:
     """Process a batch of prompts concurrently with rate limiting and progress bar"""
     sem = Semaphore(max_concurrent)
 
-    # Create tasks
-    tasks = [process_single(prompt, model, sem) for prompt in prompts]
+    # Setup progress bar
+    pbar = tqdm(total=len(prompts), desc=f"Processing {model}")
+    # Create tasks with the progress callback
+    tasks = [process_with_progress(prompt, model, sem, pbar) for prompt in prompts]
 
-    # Process with progress bar
-    with tqdm(total=len(tasks), desc=f"Processing {model}") as pbar:
+    try:
+        # Process tasks
         results = await asyncio.gather(*tasks)
-        pbar.update(len(tasks))
-
-    return results
+        return results
+    finally:
+        # Close the progress bar
+        pbar.close()
 
 
 # MCQ
@@ -356,60 +363,82 @@ def load_answer(answer):
 
 
 def create_eval_df(data: List[Dict[str, Any]]) -> pd.DataFrame:
-    data = data.copy()
-    df_expanded = data[
-        [
-            "problem_id",
-            "agent_answer",
-            "ideal_answer",
-            "mcq_question",
-            "run_name",
-            "mcq_options",
-            "md_notebook",
-            "md_images",
-        ]
-    ].copy()
-    # Create rows for each question in open ended responses
+    """
+    Creates a dataframe for evaluation with one row per question.
+    Uses vectorized operations for better performance.
+    """
+    # First, apply load_answer to all relevant columns at once
+    df = data.copy()
 
-    rows = []
-    for _, row in df_expanded.iterrows():
-        agent_ans = load_answer(row.agent_answer)
-        ideal_ans = load_answer(row.ideal_answer)
-        question = load_answer(row.mcq_question)
-        mcq_options = load_answer(row.mcq_options)
-        if isinstance(agent_ans, list):
-            agent_ans = {f"q{i}": v for i, v in enumerate(agent_ans)}
+    # Handle list type agent answers
+    mask = df["agent_answer"].apply(lambda x: isinstance(x, list))
+    df.loc[mask, "agent_answer"] = df.loc[mask, "agent_answer"].apply(
+        lambda x: {f"q{i}": v for i, v in enumerate(x)}
+    )
 
-        if not agent_ans:
-            continue
-        
-        # Create rows for each question
-        for q_num in ideal_ans.keys():
-            uuid = f"{row.problem_id}_{q_num}"
-            
-            rows.append(
-                {
-                    "uuid": uuid,
-                    "problem_id": row.problem_id,
-                    "question": question[q_num],
-                    "question_num": q_num,
-                    "agent_answer": agent_ans.get(q_num, None),
-                    "ideal_answer": ideal_ans[q_num],
-                    "run_name": row.run_name,
-                    "md_notebook": row.md_notebook,
-                    "md_images": row.md_images,
-                    "mcq_options": mcq_options[q_num],
-                }
-            )
-         
-    return pd.DataFrame(rows)
+    # Filter out rows without agent answers
+    df = df[df["agent_answer"].apply(bool)]
+
+    # Now prepare for explosion
+    # Create a column with question numbers from ideal_answer keys
+    df["question_keys"] = df["ideal_answer"].apply(lambda x: list(x.keys()))
+
+    # Explode the dataframe to create one row per question
+    exploded = df.explode("question_keys")
+
+    # Now create the final dataframe in a vectorized way
+    result = pd.DataFrame(
+        {
+            "uuid": exploded["problem_id"]
+            + "_"
+            + exploded["question_keys"].astype(str),
+            "problem_id": exploded["problem_id"],
+            "question": exploded.apply(
+                lambda row: row["mcq_question"].get(row["question_keys"], None), axis=1
+            ),
+            "question_num": exploded["question_keys"],
+            "agent_answer": exploded.apply(
+                lambda row: row["agent_answer"].get(row["question_keys"], None), axis=1
+            ),
+            "ideal_answer": exploded.apply(
+                lambda row: row["ideal_answer"].get(row["question_keys"], None), axis=1
+            ),
+            "run_name": exploded["run_name"],
+            "md_notebook": exploded["md_notebook"],
+            "md_images": exploded["md_images"],
+            "mcq_options": exploded.apply(
+                lambda row: row["mcq_options"].get(row["question_keys"], None), axis=1
+            ),
+            "refusal_option": exploded["refusal_option"],
+            "question_format": exploded["question_format"],
+            "model": exploded["model"],
+        }
+    )
+
+    result[["formatted_question", "correct_letter", "insufficient_letter"]] = (
+        result.apply(
+            lambda row: pd.Series(
+                questions_to_mcq(
+                    row["question"],
+                    row["mcq_options"],
+                    refusal_option=row["refusal_option"],
+                )
+            ),
+            axis=1,
+        )
+    )
+
+    result["prompt"] = result.apply(create_prompt, axis=1)
+    result["content"] = result.apply(create_llm_message_content, axis=1)
+
+    return result
 
 
-def questions_to_mcq(question, options: List[Dict[str, Any]], insufficient=True):
+def questions_to_mcq(question, options: List[Dict[str, Any]], refusal_option=True):
     options = options.copy()
     # Get all answer options
     correct_answer = options[0]
-    if insufficient:
+    if refusal_option:
         options.append("Insufficient information to answer the question")
 
     # Randomly shuffle options
@@ -417,12 +446,12 @@ def questions_to_mcq(question, options: List[Dict[str, Any]], insufficient=True)
 
     # Find the index of the ideal answer to determine its letter
     correct_letter = chr(65 + options.index(correct_answer))
-    if insufficient:
-        insufficient_letter = chr(
+    if refusal_option:
+        refusal_letter = chr(
             65 + options.index("Insufficient information to answer the question")
         )
     else:
-        insufficient_letter = None
+        refusal_letter = None
 
     # Format the question with lettered options
     formatted_question = f"{question}\n"
@@ -430,7 +459,7 @@ def questions_to_mcq(question, options: List[Dict[str, Any]], insufficient=True)
         formatted_question += f"{chr(65 + j)}. {opt}\n"
 
     # Join all questions with newlines
-    return formatted_question, correct_letter, insufficient_letter
+    return formatted_question, correct_letter, refusal_letter
 
 
 def create_llm_message_content(row) -> List[Dict[str, Any]]:
@@ -456,38 +485,19 @@ def create_llm_message_content(row) -> List[Dict[str, Any]]:
 
 
 def create_prompt(row):
-    if "open" in row["run_name"]:
+    if "open" in row["question_format"]:
         return prompts.OPEN_ENDED_EVAL_PROMPT.format(
             question=row.question,
             correct_answer=row.ideal_answer,
             proposed_answer=row.agent_answer,
         )
-    if "mcq" in row["run_name"]:
+    if "mcq" in row["question_format"]:
         return (
             prompts.MCQ_EVAL_PROMPT.replace("{{notebook}}", row.md_notebook)
             .replace("{{question}}", row.formatted_question)
             .replace("{{proposed_answer}}", str(row.agent_answer))
         )
     return np.nan
-
-
-def update_eval_df(eval_df, insufficient=False, run_map=None):
-    eval_df = eval_df.copy()
-    eval_df[["formatted_question", "correct_letter", "insufficient_letter"]] = (
-        eval_df.apply(
-            lambda row: pd.Series(
-                questions_to_mcq(
-                    row["question"], row["mcq_options"], insufficient=insufficient
-                )
-            ),
-            axis=1,
-        )
-    )
-    if run_map:
-        eval_df["run_name"] = eval_df["run_name"].apply(lambda x: run_map[x])
-    eval_df["prompt"] = eval_df.apply(create_prompt, axis=1)
-    eval_df["content"] = eval_df.apply(create_llm_message_content, axis=1)
-    return eval_df
 
 
 def xml_extract(text):
@@ -519,7 +529,7 @@ def run_majority_voting(
     grouped_df: pd.DataFrame, k_values: List[int], n_trials: int
 ) -> Tuple[List[int], List[float], List[float]]:
     # Fix: Calculate majority predictions first
-    majority_predictions = grouped_df["agent_mcq_answer"].apply(majority_vote)
+    majority_predictions = grouped_df["llm_answer"].apply(majority_vote)
 
     # Calculate accuracy
     accuracy = (majority_predictions == grouped_df["correct_letter"]).mean()
@@ -531,7 +541,7 @@ def run_majority_voting(
     for k in k_values:
         for _ in range(n_trials):
             # Apply majority voting with current k to each row
-            predictions = grouped_df["agent_mcq_answer"].apply(
+            predictions = grouped_df["llm_answer"].apply(
                 lambda x: majority_vote(x, k=k)
             )
 

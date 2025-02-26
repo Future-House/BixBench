@@ -28,6 +28,7 @@ class TraceGenerator:
         self.config["local_traces_dir"].mkdir(parents=True, exist_ok=True)
         self.config["local_data_folder"].mkdir(parents=True, exist_ok=True)
 
+    # TODO: Move to utils and use a yaml loader package
     def load_config(self):
         config_path = Path(__file__).parent / "config.yaml"
         with open(config_path, encoding="utf-8") as f:
