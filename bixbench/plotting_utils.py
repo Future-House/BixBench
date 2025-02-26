@@ -167,12 +167,10 @@ def draw_model_bars(x, results, barWidth, formats, colors, model1, model2):
             for fmt in formats
         ]
 
-        yerr = np.array(
-            [
-                [m - l for m, l in zip(means, ci_lows)],
-                [h - m for m, h in zip(means, ci_highs)],
-            ]
-        )
+        yerr = np.array([
+            [m - l for m, l in zip(means, ci_lows)],
+            [h - m for m, h in zip(means, ci_highs)],
+        ])
 
         plt.bar(
             x + i * barWidth,

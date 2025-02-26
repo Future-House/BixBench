@@ -92,15 +92,13 @@ async def evaluate(
                 target,
                 unsure_answer,
             ) = await baseline_agent.generate_zeroshot_answers(agent_input)
-            results.append(
-                {
-                    "uuid": dataset["train"][i]["uuid"],
-                    "question": agent_input.question,
-                    "predicted": answer,
-                    "target": target,
-                    "unsure": unsure_answer,
-                }
-            )
+            results.append({
+                "uuid": dataset["train"][i]["uuid"],
+                "question": agent_input.question,
+                "predicted": answer,
+                "target": target,
+                "unsure": unsure_answer,
+            })
 
     # make directory if it doesn't exist
     if not os.path.exists(output_dir):

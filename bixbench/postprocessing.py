@@ -1,22 +1,22 @@
+import argparse
 import ast
 import asyncio
 import json
 import operator
+import os
 
 import nbformat
 import pandas as pd
-import nbformat
-import json
-import argparse
-import os
-
 from fhda.utils import view_notebook
+
+from bixbench import plotting_utils
+
 # Import these from local directory - adjust path if needed
 from bixbench import postprocessing_utils as utils
-from bixbench import plotting_utils
 
 pd.options.mode.chained_assignment = None
 # If true, save and load intermediate results to avoid re-running the same steps
+
 
 def load_raw_data(path: str) -> pd.DataFrame:
     """
@@ -53,7 +53,9 @@ def load_raw_data(path: str) -> pd.DataFrame:
     return df
 
 
-async def process_trajectories(df: pd.DataFrame, checkpointing: bool = True) -> pd.DataFrame:
+async def process_trajectories(
+    df: pd.DataFrame, checkpointing: bool = True
+) -> pd.DataFrame:
     """
     Create a gradable dataframe from a raw dataframe of trajectories.
 
@@ -98,7 +100,7 @@ async def run_majority_vote(eval_df: pd.DataFrame, k_value: int = 10) -> None:
     """
     # Only run majority vote on mcq questions
     maj_vote_df = eval_df[eval_df.question_format == "mcq"].copy()
-    
+
     if maj_vote_df.empty:
         print("No MCQ questions found, skipping majority vote")
         return
@@ -155,7 +157,6 @@ async def compare_capsule_mode(eval_df: pd.DataFrame) -> None:
     This function analyzes and visualizes the performance differences between
     GPT-4o and Claude models across different question formats.
     """
-
     # Define model names for clarity
     model1, model2 = "gpt-4o", "claude-3-5-sonnet"
 
@@ -167,7 +168,9 @@ async def compare_capsule_mode(eval_df: pd.DataFrame) -> None:
             else ("mcq_with_refusal" if "with_refusal" in x else "mcq_without_refusal")
         )
     )
-    eval_df["model"] = eval_df["run_name"].apply(lambda x: model1 if "4o" in x else model2)
+    eval_df["model"] = eval_df["run_name"].apply(
+        lambda x: model1 if "4o" in x else model2
+    )
     eval_df = eval_df[~eval_df.run_name.str.contains("no_image")]
 
     # Calculate means and confidence intervals
@@ -196,15 +199,13 @@ def calculate_results(df: pd.DataFrame) -> list[dict]:
                 mean = scores.mean()
                 n = len(scores)
                 ci_low, ci_high = utils.wilson_ci(mean, n)
-                results.append(
-                    {
-                        "model": model,
-                        "format": fmt,
-                        "mean": mean,
-                        "ci_low": ci_low,
-                        "ci_high": ci_high,
-                    }
-                )
+                results.append({
+                    "model": model,
+                    "format": fmt,
+                    "mean": mean,
+                    "ci_low": ci_low,
+                    "ci_high": ci_high,
+                })
     return results
 
 
@@ -212,23 +213,23 @@ if __name__ == "__main__":
     # Parse command line arguments
     parser = argparse.ArgumentParser(description="Process BixBench evaluation data")
     parser.add_argument(
-        "--data_path", 
-        type=str, 
+        "--data_path",
+        type=str,
         default="bixbench_results/raw_trajectory_data.csv",
-        help="Path to the raw trajectory data CSV file"
+        help="Path to the raw trajectory data CSV file",
     )
     parser.add_argument(
-        "--checkpointing", 
-        action="store_true", 
+        "--checkpointing",
+        action="store_true",
         default=True,
-        help="Whether to save and load intermediate results"
+        help="Whether to save and load intermediate results",
     )
     args = parser.parse_args()
-    
+
     # Load raw trajectory data
     os.makedirs("bixbench_results", exist_ok=True)
     data = load_raw_data(args.data_path)
-    
+
     # Process trajectories and save eval df
     eval_df = asyncio.run(process_trajectories(data, checkpointing=args.checkpointing))
 

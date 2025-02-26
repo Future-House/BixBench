@@ -273,33 +273,29 @@ def create_eval_df(data: list[dict[str, Any]]) -> pd.DataFrame:
     exploded = df.explode("question_keys")
 
     # Now create the final dataframe in a vectorized way
-    result = pd.DataFrame(
-        {
-            "uuid": exploded["problem_id"]
-            + "_"
-            + exploded["question_keys"].astype(str),
-            "problem_id": exploded["problem_id"],
-            "question": exploded.apply(
-                lambda row: row["mcq_question"].get(row["question_keys"], None), axis=1
-            ),
-            "question_num": exploded["question_keys"],
-            "agent_answer": exploded.apply(
-                lambda row: row["agent_answer"].get(row["question_keys"], None), axis=1
-            ),
-            "ideal_answer": exploded.apply(
-                lambda row: row["ideal_answer"].get(row["question_keys"], None), axis=1
-            ),
-            "run_name": exploded["run_name"],
-            "md_notebook": exploded["md_notebook"],
-            "md_images": exploded["md_images"],
-            "mcq_options": exploded.apply(
-                lambda row: row["mcq_options"].get(row["question_keys"], None), axis=1
-            ),
-            "refusal_option": exploded["refusal_option"],
-            "question_format": exploded["question_format"],
-            "model": exploded["model"],
-        }
-    )
+    result = pd.DataFrame({
+        "uuid": exploded["problem_id"] + "_" + exploded["question_keys"].astype(str),
+        "problem_id": exploded["problem_id"],
+        "question": exploded.apply(
+            lambda row: row["mcq_question"].get(row["question_keys"], None), axis=1
+        ),
+        "question_num": exploded["question_keys"],
+        "agent_answer": exploded.apply(
+            lambda row: row["agent_answer"].get(row["question_keys"], None), axis=1
+        ),
+        "ideal_answer": exploded.apply(
+            lambda row: row["ideal_answer"].get(row["question_keys"], None), axis=1
+        ),
+        "run_name": exploded["run_name"],
+        "md_notebook": exploded["md_notebook"],
+        "md_images": exploded["md_images"],
+        "mcq_options": exploded.apply(
+            lambda row: row["mcq_options"].get(row["question_keys"], None), axis=1
+        ),
+        "refusal_option": exploded["refusal_option"],
+        "question_format": exploded["question_format"],
+        "model": exploded["model"],
+    })
 
     result[["formatted_question", "correct_letter", "insufficient_letter"]] = (
         result.apply(
@@ -379,14 +375,12 @@ def create_llm_message_content(row) -> list[dict[str, Any]]:
     if row.md_images:
         for img_data in row.md_images:
             try:
-                content.append(
-                    {
-                        "type": "image_url",
-                        "image_url": {
-                            "url": f"{img_data}",
-                        },
-                    }
-                )
+                content.append({
+                    "type": "image_url",
+                    "image_url": {
+                        "url": f"{img_data}",
+                    },
+                })
             except Exception as e:
                 print(f"Error adding image to content: {e}")
 
