@@ -9,6 +9,7 @@ from datasets import load_dataset
 import pandas as pd
 import os
 from dotenv import load_dotenv
+
 load_dotenv()
 login(token=os.getenv("HF_TOKEN"))
 
@@ -127,8 +128,7 @@ async def main():
         results = await evaluate(
             baseline_agent, args.num_examples, args.output_dir, output_file
         )
-        print(
-            f"Evaluation completed and results saved to {args.output_dir} folder")
+        print(f"Evaluation completed and results saved to {args.output_dir} folder")
     except Exception as e:
         print(f"Error: {str(e)}", file=sys.stderr)
         sys.exit(1)

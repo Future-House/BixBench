@@ -74,8 +74,7 @@ def plot_model_comparison(results, model1, model2):
     # Customize plot appearance
     plt.ylabel("Accuracy")
     plt.title("Model Performance by Question Format with Wilson CI @95%")
-    plt.xticks(x + barWidth / 2, ["Open-ended",
-               "MCQ w/ refusal", "MCQ w/o refusal"])
+    plt.xticks(x + barWidth / 2, ["Open-ended", "MCQ w/ refusal", "MCQ w/o refusal"])
 
     # Create legend with proper order
     handles, labels = plt.gca().get_legend_handles_labels()
@@ -162,8 +161,7 @@ def draw_model_bars(x, results, barWidth, formats, colors, model1, model2):
             for fmt in formats
         ]
         ci_highs = [
-            next((r["ci_high"]
-                 for r in model_results if r["format"] == fmt), 0)
+            next((r["ci_high"] for r in model_results if r["format"] == fmt), 0)
             for fmt in formats
         ]
 

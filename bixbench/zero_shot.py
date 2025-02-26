@@ -47,8 +47,7 @@ class ZeroshotBaseline:
             )
             return (
                 template.format(
-                    question=self.input.question, options="\n".join(
-                        distractors)
+                    question=self.input.question, options="\n".join(distractors)
                 ),
                 target,
                 unsure,
@@ -74,8 +73,7 @@ class ZeroshotBaseline:
             messages = [Message(content=query)]
             completion = await self.llm_client.call_single(messages)
             response = completion.model_dump()["text"]
-            predicted_answer = parse_response(
-                response, eval_mode=self.eval_mode)
+            predicted_answer = parse_response(response, eval_mode=self.eval_mode)
         except Exception as e:
             print(f"Failed to get response because of {e}")
             predicted_answer = "failed"

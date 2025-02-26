@@ -19,6 +19,7 @@ from tqdm import tqdm
 
 # Local imports
 import prompts
+
 litellm.set_verbose = False
 
 
@@ -82,8 +83,7 @@ async def send_message_to_llm(
 
 async def run_mcq_eval_loop(eval_df):
     eval_df = eval_df.copy()
-    gpt_batch = eval_df.loc[eval_df.run_name.str.contains(
-        "4o"), "content"].tolist()
+    gpt_batch = eval_df.loc[eval_df.run_name.str.contains("4o"), "content"].tolist()
     gpt_results = await process_batch(gpt_batch, "gpt-4o", max_concurrent=100)
     claude_batch = eval_df.loc[
         eval_df.run_name.str.contains("claude"), "content"
@@ -91,8 +91,7 @@ async def run_mcq_eval_loop(eval_df):
     claude_results = await process_batch(
         claude_batch, "claude-3-5-sonnet-20241022", max_concurrent=100
     )
-    eval_df.loc[eval_df.run_name.str.contains(
-        "4o"), "agent_mcq_answer"] = gpt_results
+    eval_df.loc[eval_df.run_name.str.contains("4o"), "agent_mcq_answer"] = gpt_results
     eval_df.loc[eval_df.run_name.str.contains("claude"), "agent_mcq_answer"] = (
         claude_results
     )
@@ -287,8 +286,7 @@ def process_cell_output(
             image_prefix = f"data:image/{image_format};base64,"
             try:
                 images.append(
-                    image_prefix +
-                    encode_image_to_base64(output.data[data_type])
+                    image_prefix + encode_image_to_base64(output.data[data_type])
                 )
             except Exception as e:
                 print(f"Error processing image: {e}")
@@ -422,8 +420,7 @@ def questions_to_mcq(question, options: List[Dict[str, Any]], insufficient=True)
     correct_letter = chr(65 + options.index(correct_answer))
     if insufficient:
         insufficient_letter = chr(
-            65 +
-            options.index("Insufficient information to answer the question")
+            65 + options.index("Insufficient information to answer the question")
         )
     else:
         insufficient_letter = None
