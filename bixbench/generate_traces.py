@@ -4,18 +4,17 @@ import json
 import logging
 import shutil
 from pathlib import Path
-import yaml
 
 import datasets
+import yaml
+from aviary.utils import EvalAnswerMode
+from fhda import prompts
+from fhda.data_analysis_env import DataAnalysisEnv
+from fhda.utils import NBLanguage, collect_notebook_stats, load_mcq
 from huggingface_hub import hf_hub_download
 from ldp.agent import AgentConfig
 from ldp.alg.rollout import RolloutManager
 from ldp.data_structures import Trajectory
-
-from fhda import prompts
-from fhda.data_analysis_env import DataAnalysisEnv
-from fhda.utils import NBLanguage, load_mcq, collect_notebook_stats
-from aviary.utils import EvalAnswerMode
 
 logger = logging.getLogger(__name__)
 
@@ -105,7 +104,7 @@ class TraceGenerator:
         return bixbench
 
     def _extract_and_process_files(self, zip_path: Path, extract_dir: Path):
-        """Helper method to extract and process zip files"""
+        """Helper method to extract and process zip files."""
         # Extract the zip file
         shutil.unpack_archive(zip_path, extract_dir)
 

@@ -1,34 +1,33 @@
+import ast
+import asyncio
+import base64
 import copy
 import json
-import ast
 import random
-import base64
-import asyncio
 import re
 from asyncio import Semaphore
-from typing import Dict, List, Tuple, Any, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import litellm
 import nbconvert
 import nbformat
-import pandas as pd
 import numpy as np
-from tqdm import tqdm
-
+import pandas as pd
 import prompts
+from tqdm import tqdm
 
 litellm.set_verbose = False
 
 
-def notebook_to_md(nb: nbformat.NotebookNode) -> Tuple[str, Optional[Dict[str, Any]]]:
+def notebook_to_md(nb: nbformat.NotebookNode) -> tuple[str, Optional[dict[str, Any]]]:
     """Convert a Jupyter notebook to markdown format.
-    
+
     Handles special rendering of outputs, including image placeholders and text truncation
     for large outputs.
-    
+
     Args:
         nb: The notebook node to convert
-        
+
     Returns:
         A tuple containing:
             - The markdown string representation of the notebook
@@ -53,7 +52,7 @@ def notebook_to_md(nb: nbformat.NotebookNode) -> Tuple[str, Optional[Dict[str, A
 
                 # Handle image outputs
                 if "data" in output and any(
-                    key.startswith("image/") for key in output.data.keys()
+                    key.startswith("image/") for key in output.data
                 ):
                     output.data = {"text/plain": f"<{image_counter}>"}
                     image_counter += 1
@@ -83,22 +82,21 @@ def notebook_to_md(nb: nbformat.NotebookNode) -> Tuple[str, Optional[Dict[str, A
 
 
 async def send_message_to_llm(
-    message: List[Dict[str, str]], model: str, sem: Semaphore
+    message: list[dict[str, str]], model: str, sem: Semaphore
 ) -> Any:
     """Send a message to a language model with rate limiting.
-    
+
     Args:
         message: The message to send to the LLM
         model: The model identifier to use
         sem: Semaphore for rate limiting requests
-        
+
     Returns:
         The response from the language model
     """
     async with sem:
-        # todo use lmi (FH wrapper) LiteLLMModel instead of litellm
-        response = await litellm.acompletion(model=model, messages=message)
-        return response
+        # TODO use lmi (FH wrapper) LiteLLMModel instead of litellm
+        return await litellm.acompletion(model=model, messages=message)
 
 
 models = {
@@ -109,14 +107,14 @@ models = {
 
 async def run_eval_loop(eval_df, max_concurrent=100):
     """Process evaluation dataframe with multiple LLM models concurrently.
-    
+
     Sends prompts from the dataframe to different LLM models based on the run_name
     and collects the results in the dataframe.
-    
+
     Args:
         eval_df: Dataframe containing evaluation data with prompts
         max_concurrent: Maximum number of concurrent requests allowed
-        
+
     Returns:
         Updated dataframe with model responses in the llm_answer column
     """
@@ -127,16 +125,16 @@ async def run_eval_loop(eval_df, max_concurrent=100):
     return eval_df
 
 
-async def process_single(prompt: str, model: str, sem: Semaphore) -> Dict[str, Any]:
+async def process_single(prompt: str, model: str, sem: Semaphore) -> dict[str, Any]:
     """Process a single prompt with a language model with retry logic.
-    
+
     Makes up to 5 attempts to get a response from the model.
-    
+
     Args:
         prompt: The prompt to send to the model
         model: The model identifier to use
         sem: Semaphore for rate limiting requests
-        
+
     Returns:
         The model's response content or None if all attempts fail
     """
@@ -154,40 +152,40 @@ async def process_single(prompt: str, model: str, sem: Semaphore) -> Dict[str, A
                 continue
             print(f"All 5 attempts failed. Last error: {e}")
             return None
+    return None
 
 
 async def process_with_progress(prompt, model, sem, pbar):
     """Process a single prompt and update progress bar.
-    
+
     Callback function that processes a prompt and ensures the progress bar
     is updated even if an exception occurs.
-    
+
     Args:
         prompt: The prompt to process
         model: The model identifier to use
         sem: Semaphore for rate limiting requests
         pbar: tqdm progress bar to update
-        
+
     Returns:
         The result from processing the prompt
     """
     try:
-        result = await process_single(prompt, model, sem)
-        return result
+        return await process_single(prompt, model, sem)
     finally:
         pbar.update(1)
 
 
 async def process_batch(
-    prompts: List[Dict[str, Any]], model: str, max_concurrent: int = 5
-) -> List[Dict[str, Any]]:
+    prompts: list[dict[str, Any]], model: str, max_concurrent: int = 5
+) -> list[dict[str, Any]]:
     """Process a batch of prompts concurrently with rate limiting and progress tracking.
-    
+
     Args:
         prompts: List of prompts to process
         model: The model identifier to use
         max_concurrent: Maximum number of concurrent requests allowed
-        
+
     Returns:
         List of results from processing each prompt
     """
@@ -200,8 +198,7 @@ async def process_batch(
 
     try:
         # Process tasks
-        results = await asyncio.gather(*tasks)
-        return results
+        return await asyncio.gather(*tasks)
     finally:
         # Close the progress bar
         pbar.close()
@@ -209,13 +206,13 @@ async def process_batch(
 
 def encode_image_to_base64(image: str) -> str:
     """Encode an already base64-encoded image string to base64 again.
-    
+
     This function is used when the image data needs to be standardized
     to ensure consistent handling.
-    
+
     Args:
         image: Base64 encoded image data
-        
+
     Returns:
         Re-encoded base64 string
     """
@@ -225,13 +222,13 @@ def encode_image_to_base64(image: str) -> str:
 
 def load_answer(answer):
     """Parse an answer into a dictionary format.
-    
+
     Attempts multiple parsing methods: direct dict access, ast.literal_eval,
     and json.loads to handle different input formats.
-    
+
     Args:
         answer: The answer to parse, which could be a string, dict, or other format
-        
+
     Returns:
         Dictionary representation of the answer or empty dict if parsing fails
     """
@@ -251,7 +248,7 @@ def load_answer(answer):
             return {}
 
 
-def create_eval_df(data: List[Dict[str, Any]]) -> pd.DataFrame:
+def create_eval_df(data: list[dict[str, Any]]) -> pd.DataFrame:
     """
     Creates a dataframe for evaluation with one row per question.
     Uses vectorized operations for better performance.
@@ -323,18 +320,18 @@ def create_eval_df(data: List[Dict[str, Any]]) -> pd.DataFrame:
     return result
 
 
-def questions_to_mcq(question, options: List[Dict[str, Any]], refusal_option=True):
+def questions_to_mcq(question, options: list[dict[str, Any]], refusal_option=True):
     """Format a question and options into an MCQ format.
-    
+
     Creates a formatted multiple-choice question with lettered options,
     randomly shuffles the options, and tracks the correct answer letter
     and optional refusal option letter.
-    
+
     Args:
         question: The question text
         options: List of answer options with correct answer as first element
         refusal_option: Whether to include an "Insufficient information" option
-        
+
     Returns:
         Tuple of (formatted question string, correct answer letter, refusal option letter)
     """
@@ -365,15 +362,15 @@ def questions_to_mcq(question, options: List[Dict[str, Any]], refusal_option=Tru
     return formatted_question, correct_letter, refusal_letter
 
 
-def create_llm_message_content(row) -> List[Dict[str, Any]]:
+def create_llm_message_content(row) -> list[dict[str, Any]]:
     """Create a message content structure for LLM API requests.
-    
+
     Formats text and images from a dataframe row into the format expected
     by multimodal LLM APIs.
-    
+
     Args:
         row: Dataframe row containing prompt and possibly images
-        
+
     Returns:
         List of content elements (text and images) for the LLM API
     """
@@ -398,13 +395,13 @@ def create_llm_message_content(row) -> List[Dict[str, Any]]:
 
 def create_prompt(row):
     """Create an appropriate prompt based on the question format.
-    
+
     Selects either open-ended or MCQ prompt template and formats it
     with the data from the input row.
-    
+
     Args:
         row: Dataframe row containing question and answer data
-        
+
     Returns:
         Formatted prompt string or np.nan if no matching format
     """
@@ -425,12 +422,12 @@ def create_prompt(row):
 
 def xml_extract(text):
     """Extract an answer letter from XML tags in text.
-    
+
     Looks for a pattern like <answer>A</answer> and extracts the letter.
-    
+
     Args:
         text: The text to search for the answer pattern
-        
+
     Returns:
         The extracted answer letter or 'Z' if no match is found
     """
@@ -442,13 +439,13 @@ def xml_extract(text):
 
 def majority_vote(row: pd.Series, k: int = 10) -> Optional[str]:
     """Apply majority voting to a series of predictions.
-    
+
     Randomly samples k predictions from the input and returns the most common value.
-    
+
     Args:
         row: Series of predictions
         k: Number of predictions to sample
-        
+
     Returns:
         The most common prediction or None if none can be determined
     """
@@ -460,7 +457,7 @@ def majority_vote(row: pd.Series, k: int = 10) -> Optional[str]:
     )
     # Get mode (most common value) of sampled votes
     # Check if all votes are integers
-    if not all(isinstance(vote, (int, float, str)) for vote in sampled_votes):
+    if not all(isinstance(vote, int | float | str) for vote in sampled_votes):
         return None
     unique_values, counts = np.unique(sampled_votes, return_counts=True)
 
@@ -470,18 +467,18 @@ def majority_vote(row: pd.Series, k: int = 10) -> Optional[str]:
 
 
 def run_majority_voting(
-    grouped_df: pd.DataFrame, k_values: List[int], n_trials: int
-) -> Tuple[List[int], List[float], List[float]]:
+    grouped_df: pd.DataFrame, k_values: list[int], n_trials: int
+) -> tuple[list[int], list[float], list[float]]:
     """Run majority voting experiments with different k values.
-    
+
     Applies majority voting with various k values over multiple trials
     and collects accuracy statistics.
-    
+
     Args:
         grouped_df: Dataframe with predictions grouped by question
         k_values: List of k values to test for majority voting
         n_trials: Number of trials to run for each k value
-        
+
     Returns:
         Tuple of (k_values, mean accuracies, standard deviations)
     """

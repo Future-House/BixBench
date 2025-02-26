@@ -1,5 +1,9 @@
-import asyncio
 import ast
+import asyncio
+import json
+import operator
+
+import nbformat
 import pandas as pd
 import nbformat
 import json
@@ -17,10 +21,10 @@ pd.options.mode.chained_assignment = None
 def load_raw_data(path: str) -> pd.DataFrame:
     """
     Load raw data from a CSV file and process specific columns.
-    
+
     Args:
         path (str): Path to the CSV file containing raw data
-        
+
     Returns:
         pd.DataFrame: Processed DataFrame with converted column types
     """
@@ -40,7 +44,7 @@ def load_raw_data(path: str) -> pd.DataFrame:
             df[col] = df[col].apply(func)
 
     # Convert json notebook to markdown for postprocessing
-    if "nb" in df.columns and not "nb_md" in df.columns:
+    if "nb" in df.columns and "nb_md" not in df.columns:
         df_md = pd.DataFrame(
             df["nb"].apply(lambda x: view_notebook(x.cells, "python")).tolist(),
             columns=["md_notebook", "md_images"],
@@ -52,10 +56,10 @@ def load_raw_data(path: str) -> pd.DataFrame:
 async def process_trajectories(df: pd.DataFrame, checkpointing: bool = True) -> pd.DataFrame:
     """
     Create a gradable dataframe from a raw dataframe of trajectories.
-    
+
     This function processes the raw data, runs evaluation loops, and saves
     the results to CSV files for further analysis.
-    
+
     Args:
         df (pd.DataFrame): Raw data containing model trajectories
     """
@@ -66,7 +70,7 @@ async def process_trajectories(df: pd.DataFrame, checkpointing: bool = True) -> 
     # Create correct column for open ended questions
     eval_df.loc[eval_df.question_format == "open", "correct"] = eval_df.loc[
         eval_df.question_format == "open", "llm_answer"
-    ].apply(lambda x: True if x == "1" else False)
+    ].apply(lambda x: x == "1")
     # Extract XML from LLM MCQ answers
     eval_df.loc[eval_df.question_format == "mcq", "llm_answer"] = eval_df.loc[
         eval_df.question_format == "mcq", "llm_answer"
@@ -87,7 +91,7 @@ async def run_majority_vote(eval_df: pd.DataFrame, k_value: int = 10) -> None:
     It is not designed to be used as a general function for comparing model performance.
 
     Implement majority voting evaluation across different model configurations.
-    
+
     This function reads evaluation data, performs majority voting analysis for
     multiple choice questions, and produces visualization comparing different model
     configurations with and without specific features.
@@ -107,7 +111,7 @@ async def run_majority_vote(eval_df: pd.DataFrame, k_value: int = 10) -> None:
         grouped_df["llm_answer"] = grouped_df["llm_answer"].fillna("X")
         grouped_df = grouped_df.groupby("uuid").agg(list)
         grouped_df["correct_letter"] = grouped_df["correct_letter"].apply(
-            lambda x: x[0]
+            operator.itemgetter(0)
         )
         grouped_df = grouped_df.dropna()
         k_values, means, stds = utils.run_majority_voting(
@@ -147,7 +151,7 @@ async def compare_capsule_mode(eval_df: pd.DataFrame) -> None:
     It is not designed to be used as a general function for comparing model performance.
 
     Compare performance between different model architectures.
-    
+
     This function analyzes and visualizes the performance differences between
     GPT-4o and Claude models across different question formats.
     """
@@ -176,10 +180,10 @@ async def compare_capsule_mode(eval_df: pd.DataFrame) -> None:
 def calculate_results(df: pd.DataFrame) -> list[dict]:
     """
     Calculate means and confidence intervals for each model and format.
-    
+
     Args:
         df (pd.DataFrame): DataFrame containing model evaluation results
-        
+
     Returns:
         list: List of dictionaries containing statistical results for each model and format
     """

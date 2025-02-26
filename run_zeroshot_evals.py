@@ -1,14 +1,16 @@
-import asyncio
-from itertools import islice
-import sys
 import argparse
-from bixbench import ZeroshotBaseline, AgentInput
 import ast
-from huggingface_hub import login
-from datasets import load_dataset
-import pandas as pd
+import asyncio
 import os
+import sys
+from itertools import islice
+
+import pandas as pd
+from datasets import load_dataset
 from dotenv import load_dotenv
+from huggingface_hub import login
+
+from bixbench import AgentInput, ZeroshotBaseline
 
 load_dotenv()
 login(token=os.getenv("HF_TOKEN"))
@@ -70,7 +72,7 @@ async def evaluate(
     num_examples=-1,
     output_dir="results",
     output_file=None,
-) -> pd.DataFrame:
+) -> None:
     # Load dataset
     dataset = load_dataset(HF_URL)
     # map string to list
@@ -79,7 +81,7 @@ async def evaluate(
     num_examples = num_examples if num_examples > 0 else len(dataset["train"])
     for i, row in enumerate(islice(dataset["train"], num_examples)):
         for q_dict in row["questions"]:
-            input = AgentInput(
+            agent_input = AgentInput(
                 id=dataset["train"][i]["uuid"],
                 question=q_dict["question"],
                 target=q_dict["ideal_answer"],
@@ -89,11 +91,11 @@ async def evaluate(
                 answer,
                 target,
                 unsure_answer,
-            ) = await baseline_agent.generate_zeroshot_answers(input)
+            ) = await baseline_agent.generate_zeroshot_answers(agent_input)
             results.append(
                 {
                     "uuid": dataset["train"][i]["uuid"],
-                    "question": input.question,
+                    "question": agent_input.question,
                     "predicted": answer,
                     "target": target,
                     "unsure": unsure_answer,
@@ -105,9 +107,7 @@ async def evaluate(
         os.makedirs(output_dir)
 
     output_path = os.path.join(output_dir, output_file)
-    df = pd.DataFrame(results)
-    df.to_csv(output_path, index=False)
-    return df
+    pd.DataFrame(results).to_csv(output_path, index=False)
 
 
 async def main():
@@ -125,12 +125,10 @@ async def main():
             model_name=args.model,
             temperature=args.temperature,
         )
-        results = await evaluate(
-            baseline_agent, args.num_examples, args.output_dir, output_file
-        )
+        await evaluate(baseline_agent, args.num_examples, args.output_dir, output_file)
         print(f"Evaluation completed and results saved to {args.output_dir} folder")
     except Exception as e:
-        print(f"Error: {str(e)}", file=sys.stderr)
+        print(f"Error: {e!s}", file=sys.stderr)
         sys.exit(1)
 
 
