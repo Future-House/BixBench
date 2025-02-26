@@ -1,20 +1,21 @@
-import pandas as pd
-from dotenv import load_dotenv
-load_dotenv()
-import argparse
-import sys
-import asyncio
-import os
-from typing import Dict, Any
-from lmi import LiteLLMModel
-import json
-from pathlib import Path
 from bixbench import (
     grade_mcq_answer,
     grade_open_ended_answer,
     compute_metrics,
     EvalMode,
 )
+from pathlib import Path
+import json
+from lmi import LiteLLMModel
+from typing import Dict, Any
+import os
+import asyncio
+import sys
+import argparse
+import pandas as pd
+from dotenv import load_dotenv
+load_dotenv()
+
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -39,7 +40,8 @@ def parse_args():
     parser.add_argument(
         "--output-dir", default="results", help="Directory to save results"
     )
-    parser.add_argument("--output-file", default=None, help="Output JSON filename")
+    parser.add_argument("--output-file", default=None,
+                        help="Output JSON filename")
     return parser.parse_args()
 
 
@@ -56,7 +58,8 @@ async def grade_answers(
         if eval_mode == EvalMode.openanswer:
             llm_client = LiteLLMModel(
                 name=f"{model_name}",
-                config={"name": model_name, "temperature": temperature, **kwargs},
+                config={"name": model_name,
+                        "temperature": temperature, **kwargs},
             )
             df["grade"], df["correct"], df["sure"] = zip(
                 *[
@@ -69,7 +72,8 @@ async def grade_answers(
         else:
             df["grade"], df["correct"], df["sure"] = zip(
                 *[
-                    grade_mcq_answer(row["target"], row["predicted"], row["unsure"])
+                    grade_mcq_answer(
+                        row["target"], row["predicted"], row["unsure"])
                     for _, row in df.iterrows()
                 ]
             )
