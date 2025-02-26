@@ -1,11 +1,9 @@
-import uuid
-import csv
 import random
 import string
-from typing import List, Literal
-import re
+import uuid
 from enum import StrEnum, auto
-from pydantic import BaseModel, ConfigDict, Field, SkipValidation
+
+from pydantic import BaseModel, ConfigDict
 
 
 class EvalMode(StrEnum):
@@ -41,8 +39,7 @@ def parse_response(
     answer = text[start:end]
     if eval_mode == EvalMode.openanswer:
         return answer
-    else:
-        return answer.strip().upper()
+    return answer.strip().upper()
 
 
 def randomize_choices(
@@ -50,10 +47,9 @@ def randomize_choices(
 ) -> tuple[list[str], str, str]:
     REFUSE_CHOICE = "Insufficient information to answer the question"
     ALPHABET = string.ascii_uppercase
-    if with_refusal:
-        choices = [ideal, REFUSE_CHOICE, *distractors]
-    else:
-        choices = [ideal, *distractors]
+    choices = (
+        [ideal, REFUSE_CHOICE, *distractors] if with_refusal else [ideal, *distractors]
+    )
     n_choices = len(choices)
     assert n_choices <= len(ALPHABET), "Too many choices"
 
@@ -69,5 +65,4 @@ def randomize_choices(
 
     if with_refusal:
         return shuffled_choices, answer, unsure
-    else:
-        return shuffled_choices, answer, "empty"
+    return shuffled_choices, answer, "empty"

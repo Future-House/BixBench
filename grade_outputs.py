@@ -1,19 +1,21 @@
-from bixbench import (
-    grade_mcq_answer,
-    grade_open_ended_answer,
-    compute_metrics,
-    EvalMode,
-)
-from pathlib import Path
-import json
-from lmi import LiteLLMModel
-from typing import Dict, Any
-import os
-import asyncio
-import sys
 import argparse
+import asyncio
+import json
+import os
+import sys
+from pathlib import Path
+from typing import Any
+
 import pandas as pd
 from dotenv import load_dotenv
+from lmi import LiteLLMModel
+
+from bixbench import (
+    EvalMode,
+    compute_metrics,
+    grade_mcq_answer,
+    grade_open_ended_answer,
+)
 
 load_dotenv()
 
@@ -50,10 +52,10 @@ async def grade_answers(
     eval_mode: EvalMode,
     model_name: str = "gpt-4o",
     temperature: float = 1.0,
-    **kwargs: Dict[str, Any],
+    **kwargs: dict[str, Any],
 ):
     """Grade answers based on evaluation mode."""
-    df = pd.read_csv(input_file)
+    df = pd.read_csv(input_file)  # noqa: PD901
     try:
         if eval_mode == EvalMode.openanswer:
             llm_client = LiteLLMModel(
@@ -66,14 +68,16 @@ async def grade_answers(
                         row["question"], row["target"], row["predicted"], llm_client
                     )
                     for _, row in df.iterrows()
-                ]
+                ],
+                strict=True,
             )
         else:
             df["grade"], df["correct"], df["sure"] = zip(
                 *[
                     grade_mcq_answer(row["target"], row["predicted"], row["unsure"])
                     for _, row in df.iterrows()
-                ]
+                ],
+                strict=True,
             )
 
         # save df as pd
@@ -82,7 +86,7 @@ async def grade_answers(
         return compute_metrics(df["grade"].to_list(), df["sure"].to_list())
 
     except Exception as e:
-        print(f"Error: {str(e)}", file=sys.stderr)
+        print(f"Error: {e!s}", file=sys.stderr)
         sys.exit(1)
 
 
@@ -100,10 +104,11 @@ async def main():
         if not os.path.exists(args.output_dir):
             os.makedirs(args.output_dir)
 
-        if args.output_file is None:
-            output_file = Path(args.input_file).stem + "_graded.json"
-        else:
-            output_file = args.output_file
+        output_file = (
+            Path(args.input_file).stem + "_graded.json"
+            if args.output_file is None
+            else args.output_file
+        )
 
         output_path = Path(args.output_dir) / output_file
 
@@ -113,7 +118,7 @@ async def main():
             json.dump(metrics, f, indent=4)
 
     except Exception as e:
-        print(f"Error: {str(e)}", file=sys.stderr)
+        print(f"Error: {e!s}", file=sys.stderr)
         sys.exit(1)
 
 

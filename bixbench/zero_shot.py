@@ -1,12 +1,14 @@
-from typing import Dict, Any
-from .utils import randomize_choices, parse_response, EvalMode, AgentInput
+from typing import Any
+
+from aviary.core import Message
+from lmi import LiteLLMModel
+
 from .prompts import (
     MCQ_PROMPT_TEMPLATE_WITH_REFUSAL,
     MCQ_PROMPT_TEMPLATE_WITHOUT_REFUSAL,
     OPEN_ENDED_PROMPT_TEMPLATE,
 )
-from lmi import LiteLLMModel
-from aviary.core import Message
+from .utils import AgentInput, EvalMode, parse_response, randomize_choices
 
 
 class ZeroshotBaseline:
@@ -16,7 +18,7 @@ class ZeroshotBaseline:
         with_refusal: bool,
         model_name: str = "gpt-4o",
         temperature: float = 1.0,
-        **kwargs: Dict[str, Any],
+        **kwargs: dict[str, Any],
     ) -> None:
         self.eval_mode = eval_mode
         self.with_refusal = with_refusal
@@ -33,12 +35,12 @@ class ZeroshotBaseline:
                 if self.with_refusal
                 else MCQ_PROMPT_TEMPLATE_WITHOUT_REFUSAL
             )
-        elif self.eval_mode == EvalMode.openanswer:
+        if self.eval_mode == EvalMode.openanswer:
             return OPEN_ENDED_PROMPT_TEMPLATE
+        return None
 
     def _prep_query(self) -> str:
         """Generate query based on evaluation mode and parameters."""
-
         template = self._get_prompt_template()
 
         if self.eval_mode == EvalMode.mcq:
@@ -59,15 +61,18 @@ class ZeroshotBaseline:
                 self.input.target,
                 "empty",
             )
+        return None
 
     async def generate_zeroshot_answers(
         self,
-        input: AgentInput,
+        agent_input: AgentInput,
     ) -> list[str]:
-        """Generate baseline textual answers. Supports MCQ and open-ended questions.
+        """Generate baseline textual answers.
+
+        Supports MCQ and open-ended questions.
         This version doesn't parse images.
         """
-        self.input = input
+        self.input = agent_input
         query, target, unsure = self._prep_query()
         try:
             messages = [Message(content=query)]

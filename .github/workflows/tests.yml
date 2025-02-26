@@ -29,7 +29,10 @@ jobs:
     
     - name: Run Lint
       run: |
-        python -m autopep8 --diff --exit-code --recursive .
+        # Check for linting issues
+        ruff check .
+        # Check for formatting issues (will fail if code needs formatting)
+        ruff format --check .
 
   test:
     runs-on: ubuntu-latest
