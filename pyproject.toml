@@ -1,0 +1,63 @@
+[build-system]
+build-backend = "setuptools.build_meta"
+requires = [
+    "setuptools>=66",
+    "wheel>=0.36"
+]
+
+[project]
+authors = [
+  {email = "hello@futurehouse.org", name = "FutureHouse technical staff"}
+]
+dependencies = [
+  "aiodocker",
+  "fhaviary[server] >= 0.18.0",
+  "ldp",
+  "pandas",
+  "numpy",
+  "matplotlib",
+  "scipy",
+  "seaborn",
+  "scikit-learn",
+  "statsmodels",
+  "aiofiles",
+  "google-auth",
+  "google-cloud-storage",
+  "google-cloud-secret-manager",
+  "crow-client >= 0.3.4",
+  "jupyter",
+  "nbconvert",
+  "notebook",
+  "nbformat",
+  "fhlmi",
+  "pydantic~=2.0",
+  "datasets",
+  "pandas",
+  "python-dotenv",
+  "huggingface-hub"
+]
+description = "BixBench"
+name = "fhda"
+requires-python = ">=3.12"
+version = "0.0.1"
+
+[project.optional-dependencies]
+dev = [
+  "black",
+  "isort",
+  "mypy",
+  "pre-commit",
+  "pytest",
+  "pytest-asyncio",
+  "pytest-cov",
+  "ruff"
+]
+
+[project.scripts]
+run_expt = 'scripts.configurable:_run_expt'
+
+[tool.setuptools]
+package-dir = {"" = "bixbench"}
+
+[tool.setuptools.packages.find]
+where = ["bixbench"]

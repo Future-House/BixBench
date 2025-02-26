@@ -19,6 +19,7 @@ from tqdm import tqdm
 
 # Local imports
 import prompts
+
 litellm.set_verbose = False
 
 
@@ -75,7 +76,7 @@ async def send_message_to_llm(
     message: List[Dict[str, str]], model: str, sem: Semaphore
 ) -> Any:
     async with sem:
-        #todo use lmi (FH wrapper) LiteLLMModel instead of litellm
+        # todo use lmi (FH wrapper) LiteLLMModel instead of litellm
         response = await litellm.acompletion(model=model, messages=message)
         return response
 
@@ -382,11 +383,11 @@ def create_eval_df(data: List[Dict[str, Any]]) -> pd.DataFrame:
 
         if not agent_ans:
             continue
-        
+
         # Create rows for each question
         for q_num in ideal_ans.keys():
             uuid = f"{row.problem_id}_{q_num}"
-            
+
             rows.append(
                 {
                     "uuid": uuid,
@@ -401,7 +402,7 @@ def create_eval_df(data: List[Dict[str, Any]]) -> pd.DataFrame:
                     "mcq_options": mcq_options[q_num],
                 }
             )
-         
+
     return pd.DataFrame(rows)
 
 
