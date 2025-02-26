@@ -47,6 +47,7 @@ def majority_vote_accuracy_by_k(
         )
     plt.legend()  # bbox_to_anchor=(1.05, 0), loc='lower left')
     plt.grid(True, alpha=0.3)
+    #todo: avoid hardcoding out paths or make this an optional parameter 
     plt.savefig(f"bixbench_results/majority_vote_accuracy_{name}.png")
     plt.show()
 
@@ -61,6 +62,7 @@ def plot_model_comparison(results, model1, model2):
     colors = {model1: "orange", model2: "#b3d9f2"}
 
     # Load baselines from JSON file
+    #todo: avoid hardcoding out paths or make this an optional parameter 
     with open("bixbench_results/zero_shot_baselines.json", "r") as f:
         baselines = json.load(f)
     # Draw baseline lines
@@ -85,6 +87,7 @@ def plot_model_comparison(results, model1, model2):
     # Add grid and display
     plt.grid(True, axis="y", linestyle="--", alpha=0.7)
     plt.tight_layout()
+    # fix: name is not declared
     plt.savefig(f"bixbench_results/model_comparison_{name}.png")
     plt.show()
 
