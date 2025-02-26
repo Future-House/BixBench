@@ -1,20 +1,19 @@
+import asyncio
+from itertools import islice
+import sys
+import argparse
+from bixbench import ZeroshotBaseline, AgentInput
+import ast
+from huggingface_hub import login
 from datasets import load_dataset
 import pandas as pd
 import os
 from dotenv import load_dotenv
 
 load_dotenv()
-from huggingface_hub import login
-
 login(token=os.getenv("HF_TOKEN"))
-import ast
-from bixbench import ZeroshotBaseline, AgentInput
-import argparse
-import sys
-from itertools import islice
-import asyncio
 
-hf_url = "futurehouse/BixBench-internal"
+HF_URL = "futurehouse/BixBench-internal"
 
 
 def parse_args():
@@ -73,7 +72,7 @@ async def evaluate(
     output_file=None,
 ) -> pd.DataFrame:
     # Load dataset
-    dataset = load_dataset(hf_url)
+    dataset = load_dataset(HF_URL)
     # map string to list
     dataset = dataset.map(string_to_list)
     results = []

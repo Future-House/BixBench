@@ -174,3 +174,4 @@ if __name__ == "__main__":
     asyncio.run(process_trajectories(data))
     asyncio.run(run_majority_vote())
     asyncio.run(compare_capsule_mode())
+    asyncio.run(compare_capsule_mode_with_refusal())

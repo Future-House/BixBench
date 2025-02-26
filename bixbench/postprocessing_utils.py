@@ -74,6 +74,7 @@ async def send_message_to_llm(
     message: List[Dict[str, str]], model: str, sem: Semaphore
 ) -> Any:
     async with sem:
+        # todo use lmi (FH wrapper) LiteLLMModel instead of litellm
         response = await litellm.acompletion(model=model, messages=message)
         return response
 
