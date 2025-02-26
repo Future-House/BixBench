@@ -7,15 +7,16 @@ import plotting_utils
 pd.options.mode.chained_assignment = None
 # todo: add docstrings?
 
+
 async def grade_outputs():
-    #todo: remove hardcoded paths
+    # todo: remove hardcoded paths
     df = pd.read_csv("bixbench_results/raw_data.csv")
     df["md_images"] = df["md_images"].apply(ast.literal_eval)
 
     eval_df = utils.create_eval_df(df)
 
-    #todo: remove hardcoded labels
-    #todo: change insufficient and no_insufficient to be more descriptive
+    # todo: remove hardcoded labels
+    # todo: change insufficient and no_insufficient to be more descriptive
     insufficient_map = {
         "claude_open_no_image": "claude_mcq_no_image_with_insufficient",
         "4o_open_no_image": "4o_mcq_no_image_with_insufficient",
