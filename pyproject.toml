@@ -1,6 +1,9 @@
 [build-system]
 build-backend = "setuptools.build_meta"
-requires = ["setuptools>=64"]
+requires = [
+    "setuptools>=66",
+    "wheel>=0.36"
+]
 
 [project]
 authors = [
@@ -33,7 +36,7 @@ dependencies = [
   "python-dotenv",
   "huggingface-hub"
 ]
-description = "Data analysis crow"
+description = "BixBench"
 name = "fhda"
 requires-python = ">=3.12"
 version = "0.0.1"
