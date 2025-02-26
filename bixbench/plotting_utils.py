@@ -57,7 +57,7 @@ def plot_model_comparison(results, model1, model2):
     # Setup
     plt.figure(figsize=(12, 6))
     barWidth = 0.35
-    formats = ["open", "mcq_with_insufficient", "mcq_without_insufficient"]
+    formats = ["open", "mcq_with_refusal", "mcq_without_refusal"]
     x = np.arange(len(formats))
     colors = {model1: "orange", model2: "#b3d9f2"}
 
@@ -86,8 +86,7 @@ def plot_model_comparison(results, model1, model2):
     # Add grid and display
     plt.grid(True, axis="y", linestyle="--", alpha=0.7)
     plt.tight_layout()
-    # fix: name is not declared
-    plt.savefig(f"bixbench_results/model_comparison_{name}.png")
+    plt.savefig("bixbench_results/model_comparison.png")
     plt.show()
 
 
