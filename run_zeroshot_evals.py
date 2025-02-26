@@ -1,18 +1,22 @@
 import argparse
 import ast
 import asyncio
+import logging
 import os
 import sys
 from itertools import islice
+from pathlib import Path
 
 import pandas as pd
 from datasets import load_dataset
 from dotenv import load_dotenv
 from huggingface_hub import login
-from pathlib import Path
+
 from bixbench import AgentInput, ZeroshotBaseline
-import logging
-dotenv_path = Path('.env')
+
+logger = logging.getLogger(__name__)
+
+dotenv_path = Path(".env")
 if dotenv_path.exists():
     load_dotenv(dotenv_path=dotenv_path)
 
@@ -21,15 +25,15 @@ HF_TOKEN = os.getenv("HF_TOKEN")
 HF_URL = "futurehouse/BixBench-internal"
 
 if HF_TOKEN is None:
-    logging.warning(
+    logger.warning(
         "HF_TOKEN environment variable not found. Please set this in your environment "
         "or create a .env file with this value to enable Hugging Face model access."
     )
 else:
     try:
         login(token=HF_TOKEN)
-    except Exception as e:
-        logging.error(f"Failed to login with HF_TOKEN: {e}")
+    except Exception:
+        logger.exception("Failed to login with HF_TOKEN")
 
 
 def parse_args():
@@ -126,7 +130,7 @@ async def evaluate(
 
 async def main():
     try:
-        logging.info("Starting evaluation...")
+        logger.info("Starting evaluation...")
         args = parse_args()
         output_file = (
             args.output_file
@@ -140,9 +144,11 @@ async def main():
             temperature=args.temperature,
         )
         await evaluate(baseline_agent, args.num_examples, args.output_dir, output_file)
-        logging.info(f"Evaluation completed and results saved to {args.output_dir} folder")
+        logger.info(
+            f"Evaluation completed and results saved to {args.output_dir} folder"
+        )
     except Exception as e:
-        logging.info(f"Error: {e!s}", file=sys.stderr)
+        logger.info(f"Error: {e!s}", file=sys.stderr)
         sys.exit(1)
 
 
