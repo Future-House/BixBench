@@ -1,7 +1,5 @@
 import argparse
 import ast
-import argparse
-import ast
 import asyncio
 import logging
 import os
@@ -93,7 +91,6 @@ async def evaluate(
     output_dir="results",
     output_file=None,
 ) -> None:
-) -> None:
     # Load dataset
     dataset = load_dataset(HF_URL)
     # map string to list
@@ -102,7 +99,6 @@ async def evaluate(
     num_examples = num_examples if num_examples > 0 else len(dataset["train"])
     for i, row in enumerate(islice(dataset["train"], num_examples)):
         for q_dict in row["questions"]:
-            agent_input = AgentInput(
             agent_input = AgentInput(
                 id=dataset["train"][i]["uuid"],
                 question=q_dict["question"],
@@ -114,11 +110,10 @@ async def evaluate(
                 target,
                 unsure_answer,
             ) = await baseline_agent.generate_zeroshot_answers(agent_input)
-            ) = await baseline_agent.generate_zeroshot_answers(agent_input)
+
             results.append(
                 {
                     "uuid": dataset["train"][i]["uuid"],
-                    "question": agent_input.question,
                     "question": agent_input.question,
                     "predicted": answer,
                     "target": target,
@@ -131,7 +126,6 @@ async def evaluate(
         os.makedirs(output_dir)
 
     output_path = os.path.join(output_dir, output_file)
-    pd.DataFrame(results).to_csv(output_path, index=False)
     pd.DataFrame(results).to_csv(output_path, index=False)
 
 
