@@ -7,16 +7,16 @@
     <img alt="Dataset" src="https://img.shields.io/badge/Hugging%20Face-Dataset-yellow.svg">
 </p>
 
-
 # BixBench: A Comprehensive Benchmark for LLM-based Agents in Computational Biology
 
-BixBench is a benchmark designed to evaluate AI agents on real-world bioinformatics tasks. 
+BixBench is a benchmark designed to evaluate AI agents on real-world bioinformatics tasks.
 This benchmark tests AI agents' ability to:
+
 - Explore biological datasets
 - Perform long, multi-step computational analyses
 - Interpret nuanced results in the context of a research question
 
-BixBench presents AI agents with open-ended or multiple-choice tasks, requiring them to navigate datasets, execute code (Python, R, Bash), generate scientific hypotheses, and validate them. 
+BixBench presents AI agents with open-ended or multiple-choice tasks, requiring them to navigate datasets, execute code (Python, R, Bash), generate scientific hypotheses, and validate them.
 The dataset contains 296 questions derived from 53 real-world, published Jupyter notebooks and related data (capsules).
 
 You can find the BixBench dataset in [Hugging Face](https://huggingface.co/datasets/futurehouse/BixBench) and the paper [here]().
@@ -35,6 +35,7 @@ pip install -e .
 ## Prerequisites
 
 ### API Keys
+
 Create a `.env` file with your API keys:
 
 ```
@@ -71,6 +72,7 @@ export NB_ENVIRONMENT_DOCKER_IMAGE=futurehouse/bixbench/aviary-notebook-env:late
 You can run zero-shot evaluations using the `run_zeroshot_evals.py` script. This code automatically loads the BixBench dataset from Hugging Face.
 
 The script supports two task types:
+
 1. Multiple-choice question (MCQ) type
 2. Open-ended question type
 
@@ -127,6 +129,7 @@ python bixbench/generate_traces.py
 ```
 
 This will:
+
 1. Download the BixBench dataset from Hugging Face (only needed once)
 2. Preprocess each capsule in the dataset
 3. Generate and store traces including the final agent answer and Jupyter notebook
@@ -142,6 +145,7 @@ python bixbench/postprocessing.py --data_path bixbench_results/raw_trajectory_da
 ```
 
 This will:
+
 1. Load and process raw data
 2. Create an evaluation dataframe
 3. Run majority vote analysis (for MCQ questions)
@@ -159,6 +163,7 @@ Results are saved to the `bixbench_results/` directory.
 ## Customization
 
 Edit `bixbench/config.yaml` to modify:
+
 - Model configurations
 - System prompts
 - Batch sizes
@@ -168,4 +173,3 @@ Edit `bixbench/config.yaml` to modify:
 ## Using Your Own Agent
 
 To use your own agent, use the `generate_traces.py` script to generate traces in the same format as the BixBench traces, then use the `postprocessing.py` script to evaluate your agent's performance.
-

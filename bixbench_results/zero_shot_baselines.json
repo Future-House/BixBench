@@ -1,10 +1,10 @@
 {
-    "claude-3-5-sonnet-latest-grader-openended": 0.11486486486486487,
-    "gpt-4o-grader-openended": 0.09121621621621621,
-    "claude-3-5-sonnet-latest-grader-mcq-refusal-True": 0.13851351351351351,
-    "gpt-4o-grader-mcq-refusal-True": 0.10810810810810811,
-    "claude-3-5-sonnet-latest-grader-mcq-refusal-False": 0.33783783783783783,
-    "gpt-4o-grader-mcq-refusal-False": 0.32094594594594594,
-    "random w/ refusal": 0.2,
-    "random w/o refusal": 0.25
+  "claude-3-5-sonnet-latest-grader-openended": 0.11486486486486487,
+  "gpt-4o-grader-openended": 0.09121621621621621,
+  "claude-3-5-sonnet-latest-grader-mcq-refusal-True": 0.13851351351351351,
+  "gpt-4o-grader-mcq-refusal-True": 0.10810810810810811,
+  "claude-3-5-sonnet-latest-grader-mcq-refusal-False": 0.33783783783783783,
+  "gpt-4o-grader-mcq-refusal-False": 0.32094594594594594,
+  "random w/ refusal": 0.2,
+  "random w/o refusal": 0.25
 }
