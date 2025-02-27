@@ -27,4 +27,4 @@ paths:
   workspace_dir: "data/workspace"
   traces_dir: "data/traces"
   data_folder: "data/capsules"
-  hf_repo_id: "futurehouse/bixbench-internal" 
+  hf_repo_id: "futurehouse/bixbench-internal"
