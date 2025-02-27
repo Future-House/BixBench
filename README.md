@@ -1,6 +1,15 @@
-# BixBench: A a Comprehensive Benchmark for LLM-based Agents in Computational Biology
+# BixBench: A Comprehensive Benchmark for LLM-based Agents in Computational Biology
 
-BixBench is a benchmark for evaluating Large Language Models on bioinformatics tasks. This README explains how to run zero-shot evaluations, generate traces, and analyze results.
+BixBench is a benchmark designed to evaluate AI agents on real-world bioinformatics tasks. 
+This benchmark tests AI agents' ability to:
+- Explore and analyze diverse datasets
+- Perform multi-step computational analyses
+- Interpret results in the context of the research question
+
+BixBench presents AI agents with open-ended or multiple-choice tasks, requiring them to navigate datasets, execute code (Python, R, Bash), generate scientific hypotheses, and validate them. 
+The dataset contains 296 questions derived from 53 real-world, published Jupyter notebooks and related data (capsules).
+
+You can find the BixBench dataset in [Hugging Face]() and the paper [here]().
 
 ## Installation
 
@@ -13,19 +22,26 @@ cd bixbench
 pip install -e .
 ```
 
-
 ## Prerequisites
 
-Set the following environment variables:
+### API Keys
+Create a `.env` file with your API keys:
+
+```
+HF_TOKEN = "your-hf-token"
+OPENAI_API_KEY = "your-openai-api-key"
+ANTHROPIC_API_KEY = "your-anthropic-api-key"
+```
+
+For more details on Hugging Face tokens, see https://huggingface.co/settings/tokens.
+
+You can also set environment variables directly:
 
 ```bash
 export OPENAI_API_KEY=your_openai_key
 export ANTHROPIC_API_KEY=your_anthropic_key
 export HUGGING_FACE_TOKEN=your_hf_token
-export USE_DOCKER=true  # if using Docker
-export USE_R=true       # if using R
 ```
-
 
 Authenticate with Hugging Face:
 
@@ -33,10 +49,15 @@ Authenticate with Hugging Face:
 huggingface-cli login
 ```
 
-
 ## Running Zero-shot Evaluations
 
-BixBench supports multiple evaluation modes and model configurations.
+You can run zero-shot evaluations using the `run_zeroshot_evals.py` script. This code automatically loads the BixBench dataset from Hugging Face.
+
+The script supports two task types:
+1. Multiple-choice question (MCQ) type
+2. Open-ended question type
+
+You can also evaluate LLMs with the option to refuse answering when information is insufficient. The `--with-refusal` flag adds "Insufficient information to answer the question" to the choices. This option is NOT enabled by default.
 
 ### MCQ (Multiple Choice Question) Mode
 
@@ -46,13 +67,11 @@ Run with refusal option:
 python run_zeroshot_evals.py --eval-mode mcq --with-refusal
 ```
 
-
 Run without refusal option:
 
 ```bash
 python run_zeroshot_evals.py --eval-mode mcq
 ```
-
 
 ### Open-answer Mode
 
@@ -62,12 +81,11 @@ Run with a specific model:
 python run_zeroshot_evals.py --eval-mode openanswer --model "Claude 3.5 Sonnet" --temperature 0.5
 ```
 
-
-Results are saved to CSV files in the `bixbench_results/` directory.
+Evaluation results are saved as CSV files in the `bixbench_results/` directory.
 
 ## Grading Responses
 
-After running evaluations, grade the model responses:
+After running evaluations, you can grade the model responses using the `grade_outputs.py` script.
 
 ### For MCQ responses:
 
@@ -75,42 +93,40 @@ After running evaluations, grade the model responses:
 python grade_outputs.py --input-file bixbench_results/results_mcq_False_gpt-4o_1.0.csv --eval-mode mcq
 ```
 
-
 ### For open-ended responses:
 
 ```bash
 python grade_outputs.py --input-file bixbench_results/results_openanswer_False_gpt-4o_1.0.csv --eval-mode openanswer --model "Claude 3.5 Sonnet"
 ```
 
+By default, the script uses `gpt-4o` at `temp=1.0` for grading open-ended responses.
 
 ## Generating Traces
 
-In BixBench we evaluate the ability for agents to create complex Jupyter notebooks to answer real-world bioinformatics research questions. To generate these traces, you can use the `generate_traces.py` script:
+BixBench evaluates agents' ability to create complex Jupyter notebooks for real-world bioinformatics research questions. To generate these traces:
 
 ```bash
 python bixbench/generate_traces.py
 ```
 
-
 This will:
 1. Download the BixBench dataset from Hugging Face (only needed once)
 2. Preprocess each capsule in the dataset
-3. Generate and store traces for each problem including the final agent answer and jupyter notebook
+3. Generate and store traces including the final agent answer and Jupyter notebook
 
 Traces are saved in the directory specified in `config.yaml`.
 
 ## Running Post-processing and Analysis
 
-Process raw traces to evaluate the performance of the agent:
+Process raw traces to evaluate agent performance:
 
 ```bash
 python bixbench/postprocessing.py --data_path bixbench_results/raw_trajectory_data.csv
 ```
 
-
 This will:
 1. Load and process raw data
-2. Create an evaluation dataframes
+2. Create an evaluation dataframe
 3. Run majority vote analysis (for MCQ questions)
 4. Compare model performance across different configurations
 5. Generate visualizations
@@ -133,16 +149,7 @@ Edit `bixbench/config.yaml` to modify:
 - File paths
 - Evaluation modes
 
-## Advanced Usage
+## Using Your Own Agent
 
-For more detailed control over the evaluation process, refer to the configuration options and command-line arguments in each script.
-
-# Using your own agent
-
-To use your own agent, you can use the `generate_traces.py` script to generate traces in the same format as the BixBench traces and then use the `postprocessing.py` script to evaluate the performance of your agent.
-
-
-
-
-
+To use your own agent, use the `generate_traces.py` script to generate traces in the same format as the BixBench traces, then use the `postprocessing.py` script to evaluate your agent's performance.
 

@@ -234,7 +234,7 @@ class TraceGenerator:
             )
 
             # Store trajectories for each environment
-            for trajectory, env in zip(trajectories, environments):
+            for trajectory, env in zip(trajectories, environments, strict=True):
                 await self.store_trajectory(trajectory, env)
 
 

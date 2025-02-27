@@ -3,7 +3,6 @@ import ast
 import asyncio
 import json
 import operator
-import os
 
 import nbformat
 import pandas as pd
@@ -28,7 +27,7 @@ def load_raw_data(path: str) -> pd.DataFrame:
     Returns:
         pd.DataFrame: Processed DataFrame with converted column types
     """
-    df = pd.read_csv(path)
+    raw_data = pd.read_csv(path)
     mapping = {
         "agent_answer": utils.load_answer,
         "ideal_answer": utils.load_answer,
@@ -40,17 +39,17 @@ def load_raw_data(path: str) -> pd.DataFrame:
         "refusal_option": bool,
     }
     for col, func in mapping.items():
-        if col in df.columns:
-            df[col] = df[col].apply(func)
+        if col in raw_data.columns:
+            raw_data[col] = raw_data[col].apply(func)
 
     # Convert json notebook to markdown for postprocessing
-    if "nb" in df.columns and "nb_md" not in df.columns:
+    if "nb" in raw_data.columns and "nb_md" not in raw_data.columns:
         df_md = pd.DataFrame(
-            df["nb"].apply(lambda x: view_notebook(x.cells, "python")).tolist(),
+            raw_data["nb"].apply(lambda x: view_notebook(x.cells, "python")).tolist(),
             columns=["md_notebook", "md_images"],
         )
-        df[["md_notebook", "md_images"]] = df_md
-    return df
+        raw_data[["md_notebook", "md_images"]] = df_md
+    return raw_data
 
 
 async def process_trajectories(
@@ -64,6 +63,10 @@ async def process_trajectories(
 
     Args:
         df (pd.DataFrame): Raw data containing model trajectories
+        checkpointing (bool): Whether to save intermediate results to CSV files
+
+    Returns:
+        pd.DataFrame: Processed evaluation dataframe
     """
     eval_df = utils.create_eval_df(df)
     eval_df = await utils.run_eval_loop(eval_df)
@@ -89,10 +92,10 @@ async def process_trajectories(
 
 async def run_majority_vote(eval_df: pd.DataFrame, k_value: int = 10) -> None:
     """
+    Implement majority voting evaluation across different model configurations.
+
     DISCLAIMER: This function is highly tailored to the BixBench paper requirements.
     It is not designed to be used as a general function for comparing model performance.
-
-    Implement majority voting evaluation across different model configurations.
 
     This function reads evaluation data, performs majority voting analysis for
     multiple choice questions, and produces visualization comparing different model
@@ -149,10 +152,10 @@ async def run_majority_vote(eval_df: pd.DataFrame, k_value: int = 10) -> None:
 
 async def compare_capsule_mode(eval_df: pd.DataFrame) -> None:
     """
+    Compare performance between different model architectures.
+
     DISCLAIMER: This function is highly tailored to the BixBench paper requirements.
     It is not designed to be used as a general function for comparing model performance.
-
-    Compare performance between different model architectures.
 
     This function analyzes and visualizes the performance differences between
     GPT-4o and Claude models across different question formats.
@@ -227,11 +230,11 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Load raw trajectory data
-    os.makedirs("bixbench_results", exist_ok=True)
-    data = load_raw_data(args.data_path)
+    # os.makedirs("bixbench_results", exist_ok=True)
+    # data = load_raw_data(args.data_path)
 
-    # Process trajectories and save eval df
-    eval_df = asyncio.run(process_trajectories(data, checkpointing=args.checkpointing))
+    # # Process trajectories and save eval df
+    # eval_df = asyncio.run(process_trajectories(data, checkpointing=args.checkpointing))
 
     if args.checkpointing:
         eval_df = pd.read_csv("bixbench_results/eval_df.csv")

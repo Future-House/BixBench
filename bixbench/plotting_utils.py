@@ -2,7 +2,6 @@
 # It is not designed to be used as a general function for plotting model performance.
 
 import json
-from typing import Dict, List, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -12,7 +11,7 @@ set_fh_mpl_style()
 
 
 def majority_vote_accuracy_by_k(
-    run_results: dict, style: str = "dark", name=""
+    run_results: dict, name=""
 ) -> None:
     plt.figure(figsize=(15, 6))
 
@@ -23,8 +22,8 @@ def majority_vote_accuracy_by_k(
         plt.plot(k_values, means, "o-", label=run_name)
         plt.fill_between(
             k_values,
-            [m - s for m, s in zip(means, stds)],
-            [m + s for m, s in zip(means, stds)],
+            [m - s for m, s in zip(means, stds, strict=True)],
+            [m + s for m, s in zip(means, stds, strict=True)],
             alpha=0.2,
         )
 
@@ -49,7 +48,7 @@ def majority_vote_accuracy_by_k(
             label="Without Insufficient Option Random Guess",
         )
     plt.legend()  # bbox_to_anchor=(1.05, 0), loc='lower left')
-    plt.grid(True, alpha=0.3)
+    plt.grid(alpha=0.3, visible=True)
     # TODO: avoid hardcoding out paths or make this an optional parameter
     plt.savefig(f"bixbench_results/majority_vote_accuracy_{name}.png")
     plt.show()
@@ -87,7 +86,7 @@ def plot_model_comparison(results, model1, model2):
     plt.legend(handles, labels)
 
     # Add grid and display
-    plt.grid(True, axis="y", linestyle="--", alpha=0.7)
+    plt.grid(visible=True, axis="y", linestyle="--", alpha=0.7)
     plt.tight_layout()
     plt.savefig("bixbench_results/model_comparison.png")
     plt.show()
@@ -168,8 +167,8 @@ def draw_model_bars(x, results, barWidth, formats, colors, model1, model2):
         ]
 
         yerr = np.array([
-            [m - l for m, l in zip(means, ci_lows)],
-            [h - m for m, h in zip(means, ci_highs)],
+            [m - low for m, low in zip(means, ci_lows, strict=True)],
+            [h - m for m, h in zip(means, ci_highs, strict=True)],
         ])
 
         plt.bar(

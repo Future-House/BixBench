@@ -1,84 +1,20 @@
 import ast
 import asyncio
 import base64
-import copy
 import json
 import random
 import re
 from asyncio import Semaphore
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Optional
 
 import litellm
-import nbconvert
-import nbformat
 import numpy as np
 import pandas as pd
-import prompts
 from tqdm import tqdm
 
+from . import prompts
+
 litellm.set_verbose = False
-
-
-def notebook_to_md(nb: nbformat.NotebookNode) -> tuple[str, Optional[dict[str, Any]]]:
-    """Convert a Jupyter notebook to markdown format.
-
-    Handles special rendering of outputs, including image placeholders and text truncation
-    for large outputs.
-
-    Args:
-        nb: The notebook node to convert
-
-    Returns:
-        A tuple containing:
-            - The markdown string representation of the notebook
-            - Optional dictionary of resources (like images) extracted from the notebook
-    """
-    image_counter = 1
-    nb = copy.deepcopy(nb)
-    # Convert non-image outputs to plain text and handle images
-    for cell in nb.cells:
-        if cell.get("outputs"):
-            for output in cell.outputs:
-                # Handle stream output type
-                if output["output_type"] == "stream":
-                    text_content = output.get("text", "")
-                    # Truncate if needed
-                    if len(text_content) > 6000:
-                        first_half = text_content[:3000]
-                        last_half = text_content[-3000:]
-                        text_content = f"{first_half}\n...[truncated]...\n{last_half}"
-                    output["text"] = text_content
-                    continue
-
-                # Handle image outputs
-                if "data" in output and any(
-                    key.startswith("image/") for key in output.data
-                ):
-                    output.data = {"text/plain": f"<{image_counter}>"}
-                    image_counter += 1
-                    continue
-
-                # Convert everything else to plain text
-                if "data" in output:
-                    text_content = ""
-                    if "text/plain" in output.data:
-                        text_content = output.data["text/plain"]
-                    elif "text/html" in output.data:
-                        text_content = output.data["text/html"]
-
-                    # Truncate long text outputs
-                    if len(text_content) > 6000:
-                        first_half = text_content[:3000]
-                        last_half = text_content[-3000:]
-                        text_content = f"{first_half}\n...[truncated]...\n{last_half}"
-
-                    output.data = {"text/plain": text_content}
-
-    markdown_exporter = nbconvert.MarkdownExporter()
-    markdown_exporter.exclude_input = False
-    markdown_exporter.exclude_output = False
-    markdown, resources = markdown_exporter.from_notebook_node(nb)
-    return markdown, resources.get("outputs", None)
 
 
 async def send_message_to_llm(
@@ -95,7 +31,6 @@ async def send_message_to_llm(
         The response from the language model
     """
     async with sem:
-        # TODO use lmi (FH wrapper) LiteLLMModel instead of litellm
         return await litellm.acompletion(model=model, messages=message)
 
 
@@ -142,12 +77,13 @@ async def process_single(prompt: str, model: str, sem: Semaphore) -> dict[str, A
         {"role": "user", "content": prompt},
     ]
 
+    MAX_RETRIES = 4
     for attempt in range(5):
         try:
             res = await send_message_to_llm(messages, model, sem)
             return res.choices[0].message.content
         except Exception as e:
-            if attempt < 4:  # Don't print on last attempt
+            if attempt < MAX_RETRIES:  # Don't print on last attempt
                 print(f"Attempt {attempt + 1} failed: {e}")
                 continue
             print(f"All 5 attempts failed. Last error: {e}")
@@ -239,11 +175,11 @@ def load_answer(answer):
     try:
         # Try literal eval first
         return ast.literal_eval(answer)
-    except:
+    except (ValueError, SyntaxError):
         try:
             # Fallback to json loads
             return json.loads(answer)
-        except:
+        except (ValueError, TypeError, json.JSONDecodeError):
             # Return empty dict if parsing fails
             return {}
 
@@ -251,26 +187,27 @@ def load_answer(answer):
 def create_eval_df(data: list[dict[str, Any]]) -> pd.DataFrame:
     """
     Creates a dataframe for evaluation with one row per question.
+
     Uses vectorized operations for better performance.
     """
     # First, apply load_answer to all relevant columns at once
-    df = data.copy()
+    evaluation_data = data.copy()
 
     # Handle list type agent answers
-    mask = df["agent_answer"].apply(lambda x: isinstance(x, list))
-    df.loc[mask, "agent_answer"] = df.loc[mask, "agent_answer"].apply(
+    mask = evaluation_data["agent_answer"].apply(lambda x: isinstance(x, list))
+    evaluation_data.loc[mask, "agent_answer"] = evaluation_data.loc[mask, "agent_answer"].apply(
         lambda x: {f"q{i}": v for i, v in enumerate(x)}
     )
 
     # Filter out rows without agent answers
-    df = df[df["agent_answer"].apply(bool)]
+    evaluation_data = evaluation_data[evaluation_data["agent_answer"].apply(bool)]
 
     # Now prepare for explosion
     # Create a column with question numbers from ideal_answer keys
-    df["question_keys"] = df["ideal_answer"].apply(lambda x: list(x.keys()))
+    evaluation_data["question_keys"] = evaluation_data["ideal_answer"].apply(lambda x: list(x.keys()))
 
     # Explode the dataframe to create one row per question
-    exploded = df.explode("question_keys")
+    exploded = evaluation_data.explode("question_keys")
 
     # Now create the final dataframe in a vectorized way
     result = pd.DataFrame({
@@ -446,7 +383,8 @@ def majority_vote(row: pd.Series, k: int = 10) -> Optional[str]:
     # Get all predictions excluding the 'answer' column
     predictions = row[:-1]
     # Randomly sample k predictions without replacement
-    sampled_votes = np.random.choice(
+    rng = np.random.default_rng()
+    sampled_votes = rng.choice(
         predictions, size=min(k, len(predictions)), replace=False
     )
     # Get mode (most common value) of sampled votes
@@ -490,7 +428,7 @@ def run_majority_voting(
         for _ in range(n_trials):
             # Apply majority voting with current k to each row
             predictions = grouped_df["llm_answer"].apply(
-                lambda x: majority_vote(x, k=k)
+                lambda x, k_value=k: majority_vote(x, k=k_value)
             )
 
             # Calculate and store accuracy
