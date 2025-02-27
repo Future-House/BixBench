@@ -1,84 +1,20 @@
 import ast
 import asyncio
 import base64
-import copy
 import json
 import random
 import re
 from asyncio import Semaphore
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Optional
 
 import litellm
-import nbconvert
-import nbformat
 import numpy as np
 import pandas as pd
-import prompts
 from tqdm import tqdm
 
+from . import prompts
+
 litellm.set_verbose = False
-
-
-def notebook_to_md(nb: nbformat.NotebookNode) -> tuple[str, Optional[dict[str, Any]]]:
-    """Convert a Jupyter notebook to markdown format.
-
-    Handles special rendering of outputs, including image placeholders and text truncation
-    for large outputs.
-
-    Args:
-        nb: The notebook node to convert
-
-    Returns:
-        A tuple containing:
-            - The markdown string representation of the notebook
-            - Optional dictionary of resources (like images) extracted from the notebook
-    """
-    image_counter = 1
-    nb = copy.deepcopy(nb)
-    # Convert non-image outputs to plain text and handle images
-    for cell in nb.cells:
-        if cell.get("outputs"):
-            for output in cell.outputs:
-                # Handle stream output type
-                if output["output_type"] == "stream":
-                    text_content = output.get("text", "")
-                    # Truncate if needed
-                    if len(text_content) > 6000:
-                        first_half = text_content[:3000]
-                        last_half = text_content[-3000:]
-                        text_content = f"{first_half}\n...[truncated]...\n{last_half}"
-                    output["text"] = text_content
-                    continue
-
-                # Handle image outputs
-                if "data" in output and any(
-                    key.startswith("image/") for key in output.data
-                ):
-                    output.data = {"text/plain": f"<{image_counter}>"}
-                    image_counter += 1
-                    continue
-
-                # Convert everything else to plain text
-                if "data" in output:
-                    text_content = ""
-                    if "text/plain" in output.data:
-                        text_content = output.data["text/plain"]
-                    elif "text/html" in output.data:
-                        text_content = output.data["text/html"]
-
-                    # Truncate long text outputs
-                    if len(text_content) > 6000:
-                        first_half = text_content[:3000]
-                        last_half = text_content[-3000:]
-                        text_content = f"{first_half}\n...[truncated]...\n{last_half}"
-
-                    output.data = {"text/plain": text_content}
-
-    markdown_exporter = nbconvert.MarkdownExporter()
-    markdown_exporter.exclude_input = False
-    markdown_exporter.exclude_output = False
-    markdown, resources = markdown_exporter.from_notebook_node(nb)
-    return markdown, resources.get("outputs", None)
 
 
 async def send_message_to_llm(
@@ -95,7 +31,6 @@ async def send_message_to_llm(
         The response from the language model
     """
     async with sem:
-        # TODO use lmi (FH wrapper) LiteLLMModel instead of litellm
         return await litellm.acompletion(model=model, messages=message)
 
 
@@ -105,7 +40,28 @@ models = {
 }
 
 
-async def run_eval_loop(eval_df, max_concurrent=100):
+async def process_model_batch(
+    eval_df: pd.DataFrame, model_key: str, model_name: str, max_concurrent: int
+) -> tuple[str, list[Any]]:
+    """Process batch for a single model.
+
+    Args:
+        eval_df: Dataframe containing evaluation data
+        model_key: Key for the model (e.g., "4o", "claude")
+        model_name: Full name of the model to use
+        max_concurrent: Maximum number of concurrent requests
+
+    Returns:
+        Tuple of (model_key, results) for updating the dataframe
+    """
+    batch = eval_df.loc[eval_df.run_name.str.contains(model_key), "content"].tolist()
+    results = await process_batch(batch, model_name, max_concurrent=max_concurrent)
+    return model_key, results
+
+
+async def run_eval_loop(
+    eval_df: pd.DataFrame, max_concurrent: int = 100
+) -> pd.DataFrame:
     """Process evaluation dataframe with multiple LLM models concurrently.
 
     Sends prompts from the dataframe to different LLM models based on the run_name
@@ -118,10 +74,21 @@ async def run_eval_loop(eval_df, max_concurrent=100):
     Returns:
         Updated dataframe with model responses in the llm_answer column
     """
-    for model, llm_name in models.items():
-        batch = eval_df.loc[eval_df.run_name.str.contains(model), "content"].tolist()
-        results = await process_batch(batch, llm_name, max_concurrent=max_concurrent)
-        eval_df.loc[eval_df.run_name.str.contains(model), "llm_answer"] = results
+    # Create tasks for all models to run concurrently
+    tasks = [
+        process_model_batch(eval_df, model_key, model_name, max_concurrent)
+        for model_key, model_name in models.items()
+    ]
+
+    # Run all model processing tasks concurrently
+    results = await asyncio.gather(*tasks)
+
+    # Update the dataframe with results from all models
+    for model_key, model_results in results:
+        eval_df.loc[eval_df.run_name.str.contains(model_key), "llm_answer"] = (
+            model_results
+        )
+
     return eval_df
 
 
@@ -142,12 +109,13 @@ async def process_single(prompt: str, model: str, sem: Semaphore) -> dict[str, A
         {"role": "user", "content": prompt},
     ]
 
+    MAX_RETRIES = 4
     for attempt in range(5):
         try:
             res = await send_message_to_llm(messages, model, sem)
             return res.choices[0].message.content
         except Exception as e:
-            if attempt < 4:  # Don't print on last attempt
+            if attempt < MAX_RETRIES:  # Don't print on last attempt
                 print(f"Attempt {attempt + 1} failed: {e}")
                 continue
             print(f"All 5 attempts failed. Last error: {e}")
@@ -155,7 +123,9 @@ async def process_single(prompt: str, model: str, sem: Semaphore) -> dict[str, A
     return None
 
 
-async def process_with_progress(prompt, model, sem, pbar):
+async def process_with_progress(
+    prompt: str, model: str, sem: Semaphore, pbar: tqdm
+) -> dict[str, Any]:
     """Process a single prompt and update progress bar.
 
     Callback function that processes a prompt and ensures the progress bar
@@ -220,7 +190,7 @@ def encode_image_to_base64(image: str) -> str:
     return base64.b64encode(decoded_image).decode("utf-8")
 
 
-def load_answer(answer):
+def load_answer(answer: str | dict[str, Any]) -> dict[str, Any]:
     """Parse an answer into a dictionary format.
 
     Attempts multiple parsing methods: direct dict access, ast.literal_eval,
@@ -239,11 +209,11 @@ def load_answer(answer):
     try:
         # Try literal eval first
         return ast.literal_eval(answer)
-    except:
+    except (ValueError, SyntaxError):
         try:
             # Fallback to json loads
             return json.loads(answer)
-        except:
+        except (ValueError, TypeError, json.JSONDecodeError):
             # Return empty dict if parsing fails
             return {}
 
@@ -251,55 +221,54 @@ def load_answer(answer):
 def create_eval_df(data: list[dict[str, Any]]) -> pd.DataFrame:
     """
     Creates a dataframe for evaluation with one row per question.
+
     Uses vectorized operations for better performance.
     """
     # First, apply load_answer to all relevant columns at once
-    df = data.copy()
+    evaluation_data = data.copy()
 
     # Handle list type agent answers
-    mask = df["agent_answer"].apply(lambda x: isinstance(x, list))
-    df.loc[mask, "agent_answer"] = df.loc[mask, "agent_answer"].apply(
-        lambda x: {f"q{i}": v for i, v in enumerate(x)}
-    )
+    mask = evaluation_data["agent_answer"].apply(lambda x: isinstance(x, list))
+    evaluation_data.loc[mask, "agent_answer"] = evaluation_data.loc[
+        mask, "agent_answer"
+    ].apply(lambda x: {f"q{i}": v for i, v in enumerate(x)})
 
     # Filter out rows without agent answers
-    df = df[df["agent_answer"].apply(bool)]
+    evaluation_data = evaluation_data[evaluation_data["agent_answer"].apply(bool)]
 
     # Now prepare for explosion
     # Create a column with question numbers from ideal_answer keys
-    df["question_keys"] = df["ideal_answer"].apply(lambda x: list(x.keys()))
+    evaluation_data["question_keys"] = evaluation_data["ideal_answer"].apply(
+        lambda x: list(x.keys())
+    )
 
     # Explode the dataframe to create one row per question
-    exploded = df.explode("question_keys")
+    exploded = evaluation_data.explode("question_keys")
 
     # Now create the final dataframe in a vectorized way
-    result = pd.DataFrame(
-        {
-            "uuid": exploded["problem_id"]
-            + "_"
-            + exploded["question_keys"].astype(str),
-            "problem_id": exploded["problem_id"],
-            "question": exploded.apply(
-                lambda row: row["mcq_question"].get(row["question_keys"], None), axis=1
-            ),
-            "question_num": exploded["question_keys"],
-            "agent_answer": exploded.apply(
-                lambda row: row["agent_answer"].get(row["question_keys"], None), axis=1
-            ),
-            "ideal_answer": exploded.apply(
-                lambda row: row["ideal_answer"].get(row["question_keys"], None), axis=1
-            ),
-            "run_name": exploded["run_name"],
-            "md_notebook": exploded["md_notebook"],
-            "md_images": exploded["md_images"],
-            "mcq_options": exploded.apply(
-                lambda row: row["mcq_options"].get(row["question_keys"], None), axis=1
-            ),
-            "refusal_option": exploded["refusal_option"],
-            "question_format": exploded["question_format"],
-            "model": exploded["model"],
-        }
-    )
+    result = pd.DataFrame({
+        "uuid": exploded["problem_id"] + "_" + exploded["question_keys"].astype(str),
+        "problem_id": exploded["problem_id"],
+        "question": exploded.apply(
+            lambda row: row["mcq_question"].get(row["question_keys"], None), axis=1
+        ),
+        "question_num": exploded["question_keys"],
+        "agent_answer": exploded.apply(
+            lambda row: row["agent_answer"].get(row["question_keys"], None), axis=1
+        ),
+        "ideal_answer": exploded.apply(
+            lambda row: row["ideal_answer"].get(row["question_keys"], None), axis=1
+        ),
+        "run_name": exploded["run_name"],
+        "md_notebook": exploded["md_notebook"],
+        "md_images": exploded["md_images"],
+        "mcq_options": exploded.apply(
+            lambda row: row["mcq_options"].get(row["question_keys"], None), axis=1
+        ),
+        "refusal_option": exploded["refusal_option"],
+        "question_format": exploded["question_format"],
+        "model": exploded["model"],
+    })
 
     result[["formatted_question", "correct_letter", "insufficient_letter"]] = (
         result.apply(
@@ -379,21 +348,19 @@ def create_llm_message_content(row) -> list[dict[str, Any]]:
     if row.md_images:
         for img_data in row.md_images:
             try:
-                content.append(
-                    {
-                        "type": "image_url",
-                        "image_url": {
-                            "url": f"{img_data}",
-                        },
-                    }
-                )
+                content.append({
+                    "type": "image_url",
+                    "image_url": {
+                        "url": f"{img_data}",
+                    },
+                })
             except Exception as e:
                 print(f"Error adding image to content: {e}")
 
     return content
 
 
-def create_prompt(row):
+def create_prompt(row: pd.Series) -> str:
     """Create an appropriate prompt based on the question format.
 
     Selects either open-ended or MCQ prompt template and formats it
@@ -420,7 +387,7 @@ def create_prompt(row):
     return np.nan
 
 
-def xml_extract(text):
+def xml_extract(text: str) -> str:
     """Extract an answer letter from XML tags in text.
 
     Looks for a pattern like <answer>A</answer> and extracts the letter.
@@ -452,7 +419,8 @@ def majority_vote(row: pd.Series, k: int = 10) -> Optional[str]:
     # Get all predictions excluding the 'answer' column
     predictions = row[:-1]
     # Randomly sample k predictions without replacement
-    sampled_votes = np.random.choice(
+    rng = np.random.default_rng()
+    sampled_votes = rng.choice(
         predictions, size=min(k, len(predictions)), replace=False
     )
     # Get mode (most common value) of sampled votes
@@ -496,7 +464,7 @@ def run_majority_voting(
         for _ in range(n_trials):
             # Apply majority voting with current k to each row
             predictions = grouped_df["llm_answer"].apply(
-                lambda x: majority_vote(x, k=k)
+                lambda x, k_value=k: majority_vote(x, k=k_value)
             )
 
             # Calculate and store accuracy
@@ -509,7 +477,7 @@ def run_majority_voting(
     return k_values, means, stds
 
 
-def wilson_ci(p, n, z=1.96):
+def wilson_ci(p: float, n: int, z: float = 1.96) -> tuple[float, float]:
     """Calculate Wilson confidence interval for a proportion."""
     denominator = 1 + z**2 / n
     center = (p + z**2 / (2 * n)) / denominator

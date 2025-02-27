@@ -102,28 +102,36 @@ class TestZeroshotBaseline:
         assert unsure == "empty"
 
     # TODO: add test for prep_query for mcq mode
+
+
 # testing utils
 
 
 @pytest.mark.parametrize(
     ("ideal", "distractors", "with_refusal", "expected_length"),
     [
-        pytest.param("Paris", ["London", "Berlin",
-                               "Madrid"], True, 5, id="with_refusal"),
-        pytest.param("Paris", ["London", "Berlin",
-                               "Madrid"], False, 4, id="without_refusal"),
-    ]
+        pytest.param(
+            "Paris", ["London", "Berlin", "Madrid"], True, 5, id="with_refusal"
+        ),
+        pytest.param(
+            "Paris", ["London", "Berlin", "Madrid"], False, 4, id="without_refusal"
+        ),
+    ],
 )
-def test_randomize_choices(ideal: str, distractors: list[str], with_refusal: bool, expected_length: int):
-
+def test_randomize_choices(
+    ideal: str, distractors: list[str], with_refusal: bool, expected_length: int
+):
     shuffled_choices, answer, unsure = randomize_choices(
-        ideal, distractors, with_refusal)
+        ideal, distractors, with_refusal
+    )
     print(shuffled_choices)
     # 3 distractors + target +/- refusal option
     assert len(shuffled_choices) == expected_length
     if with_refusal:
         assert any(
-            "Insufficient information to answer the question" in choice for choice in shuffled_choices)
+            "Insufficient information to answer the question" in choice
+            for choice in shuffled_choices
+        )
     else:
         assert unsure == "empty"
 
@@ -145,7 +153,6 @@ def test_randomize_choices(ideal: str, distractors: list[str], with_refusal: boo
             "A",
             id="with_spaces",
         ),
-
         pytest.param(
             "This is a mock response. Answer is: <answer>a </answer>.",
             EvalMode.mcq,
@@ -166,7 +173,7 @@ def test_randomize_choices(ideal: str, distractors: list[str], with_refusal: boo
             "response",
             "this is the response",
             id="response tag",
-        )
+        ),
     ],
 )
 def test_parse_response(text: str, eval_mode: EvalMode, tag: str, expected: str):
