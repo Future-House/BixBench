@@ -22,7 +22,7 @@ if dotenv_path.exists():
 
 
 HF_TOKEN = os.getenv("HF_TOKEN")
-HF_URL = "futurehouse/BixBench-internal"
+HF_URL = "futurehouse/BixBench"
 
 if HF_TOKEN is None:
     logger.warning(
