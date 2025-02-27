@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from bixbench.utils import AgentInput, EvalMode, parse_response, randomize_choices
+from bixbench.utils import AgentInput, EvalMode
 from bixbench.zero_shot import ZeroshotBaseline
 
 sys.path.append("../")
@@ -105,76 +105,3 @@ class TestZeroshotBaseline:
 
 
 # testing utils
-
-
-@pytest.mark.parametrize(
-    ("ideal", "distractors", "with_refusal", "expected_length"),
-    [
-        pytest.param(
-            "Paris", ["London", "Berlin", "Madrid"], True, 5, id="with_refusal"
-        ),
-        pytest.param(
-            "Paris", ["London", "Berlin", "Madrid"], False, 4, id="without_refusal"
-        ),
-    ],
-)
-def test_randomize_choices(
-    ideal: str, distractors: list[str], with_refusal: bool, expected_length: int
-):
-    shuffled_choices, answer, unsure = randomize_choices(
-        ideal, distractors, with_refusal
-    )
-    print(shuffled_choices)
-    # 3 distractors + target +/- refusal option
-    assert len(shuffled_choices) == expected_length
-    if with_refusal:
-        assert any(
-            "Insufficient information to answer the question" in choice
-            for choice in shuffled_choices
-        )
-    else:
-        assert unsure == "empty"
-
-
-@pytest.mark.parametrize(
-    ("text", "eval_mode", "tag", "expected"),
-    [
-        pytest.param(
-            "This is a mock response. Answer is: <answer>A</answer>.",
-            EvalMode.mcq,
-            "answer",
-            "A",
-            id="simple",
-        ),
-        pytest.param(
-            "This is a mock response. Answer is: <answer> A </answer>.",
-            EvalMode.mcq,
-            "answer",
-            "A",
-            id="with_spaces",
-        ),
-        pytest.param(
-            "This is a mock response. Answer is: <answer>a </answer>.",
-            EvalMode.mcq,
-            "answer",
-            "A",
-            id="lowercase",
-        ),
-        pytest.param(
-            "This is a mock response. Answer is: <answer> Anything is okay </answer>",
-            EvalMode.openanswer,
-            "answer",
-            " Anything is okay ",
-            id="openanswer",
-        ),
-        pytest.param(
-            "This is a mock response. Answer is: <response>this is the response</response>.",
-            EvalMode.openanswer,
-            "response",
-            "this is the response",
-            id="response tag",
-        ),
-    ],
-)
-def test_parse_response(text: str, eval_mode: EvalMode, tag: str, expected: str):
-    assert parse_response(text=text, tag=tag, eval_mode=eval_mode) == expected
