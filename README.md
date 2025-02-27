@@ -1,3 +1,13 @@
+<p align="center">
+    <a href="https://arxiv.org/abs/">
+    <img alt="Paper" src="https://img.shields.io/badge/arXiv-arXiv:2409.11363-b31b1b.svg">
+    <a href = "https://github.com/Future-House/BixBench">
+    <img alt="GitHub" src="https://img.shields.io/badge/GitHub-Repository-181717.svg">
+    <a href="https://huggingface.co/datasets/futurehouse/BixBench-internal">
+    <img alt="Dataset" src="https://img.shields.io/badge/Hugging%20Face-Dataset-yellow.svg">
+</p>
+
+
 # BixBench: A Comprehensive Benchmark for LLM-based Agents in Computational Biology
 
 BixBench is a benchmark designed to evaluate AI agents on real-world bioinformatics tasks. 
