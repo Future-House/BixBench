@@ -195,16 +195,18 @@ def create_eval_df(data: list[dict[str, Any]]) -> pd.DataFrame:
 
     # Handle list type agent answers
     mask = evaluation_data["agent_answer"].apply(lambda x: isinstance(x, list))
-    evaluation_data.loc[mask, "agent_answer"] = evaluation_data.loc[mask, "agent_answer"].apply(
-        lambda x: {f"q{i}": v for i, v in enumerate(x)}
-    )
+    evaluation_data.loc[mask, "agent_answer"] = evaluation_data.loc[
+        mask, "agent_answer"
+    ].apply(lambda x: {f"q{i}": v for i, v in enumerate(x)})
 
     # Filter out rows without agent answers
     evaluation_data = evaluation_data[evaluation_data["agent_answer"].apply(bool)]
 
     # Now prepare for explosion
     # Create a column with question numbers from ideal_answer keys
-    evaluation_data["question_keys"] = evaluation_data["ideal_answer"].apply(lambda x: list(x.keys()))
+    evaluation_data["question_keys"] = evaluation_data["ideal_answer"].apply(
+        lambda x: list(x.keys())
+    )
 
     # Explode the dataframe to create one row per question
     exploded = evaluation_data.explode("question_keys")

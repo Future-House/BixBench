@@ -10,9 +10,7 @@ from plot_style import set_fh_mpl_style
 set_fh_mpl_style()
 
 
-def majority_vote_accuracy_by_k(
-    run_results: dict, name=""
-) -> None:
+def majority_vote_accuracy_by_k(run_results: dict, name="") -> None:
     plt.figure(figsize=(15, 6))
 
     for run_name, (k_values, means, stds) in run_results.items():
