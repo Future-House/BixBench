@@ -12,6 +12,7 @@ authors = [
 dependencies = [
   "aiodocker",
   "fhaviary[server] >= 0.18.0",
+  "fhda @ git+https://github.com/Future-House/data-analysis-crow@main",
   "ldp",
   "pandas",
   "numpy",
@@ -49,6 +50,7 @@ dev = [
   "pre-commit",
   "pytest",
   "pytest-asyncio",
+  "pytest-mock",
   "pytest-cov",
   "ruff"
 ]

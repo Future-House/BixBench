@@ -3,14 +3,13 @@ import ast
 import asyncio
 import json
 import operator
+import os
 
 import nbformat
 import pandas as pd
 from fhda.utils import view_notebook
 
 from bixbench import plotting_utils
-
-# Import these from local directory - adjust path if needed
 from bixbench import postprocessing_utils as utils
 
 pd.options.mode.chained_assignment = None
@@ -71,7 +70,6 @@ async def process_trajectories(
     eval_df = utils.create_eval_df(df)
     eval_df = await utils.run_eval_loop(eval_df)
 
-    eval_df.to_csv("bixbench_results/eval_loop_results.csv", index=False)
     # Create correct column for open ended questions
     eval_df.loc[eval_df.question_format == "open", "correct"] = eval_df.loc[
         eval_df.question_format == "open", "llm_answer"
@@ -230,11 +228,11 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Load raw trajectory data
-    # os.makedirs("bixbench_results", exist_ok=True)
-    # data = load_raw_data(args.data_path)
+    os.makedirs("bixbench_results", exist_ok=True)
+    data = load_raw_data(args.data_path)
 
-    # # Process trajectories and save eval df
-    # eval_df = asyncio.run(process_trajectories(data, checkpointing=args.checkpointing))
+    # Process trajectories and save eval df
+    eval_df = asyncio.run(process_trajectories(data, checkpointing=args.checkpointing))
 
     if args.checkpointing:
         eval_df = pd.read_csv("bixbench_results/eval_df.csv")

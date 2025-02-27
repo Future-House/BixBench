@@ -40,7 +40,28 @@ models = {
 }
 
 
-async def run_eval_loop(eval_df, max_concurrent=100):
+async def process_model_batch(
+    eval_df: pd.DataFrame, model_key: str, model_name: str, max_concurrent: int
+) -> tuple[str, list[Any]]:
+    """Process batch for a single model.
+
+    Args:
+        eval_df: Dataframe containing evaluation data
+        model_key: Key for the model (e.g., "4o", "claude")
+        model_name: Full name of the model to use
+        max_concurrent: Maximum number of concurrent requests
+
+    Returns:
+        Tuple of (model_key, results) for updating the dataframe
+    """
+    batch = eval_df.loc[eval_df.run_name.str.contains(model_key), "content"].tolist()
+    results = await process_batch(batch, model_name, max_concurrent=max_concurrent)
+    return model_key, results
+
+
+async def run_eval_loop(
+    eval_df: pd.DataFrame, max_concurrent: int = 100
+) -> pd.DataFrame:
     """Process evaluation dataframe with multiple LLM models concurrently.
 
     Sends prompts from the dataframe to different LLM models based on the run_name
@@ -53,10 +74,21 @@ async def run_eval_loop(eval_df, max_concurrent=100):
     Returns:
         Updated dataframe with model responses in the llm_answer column
     """
-    for model, llm_name in models.items():
-        batch = eval_df.loc[eval_df.run_name.str.contains(model), "content"].tolist()
-        results = await process_batch(batch, llm_name, max_concurrent=max_concurrent)
-        eval_df.loc[eval_df.run_name.str.contains(model), "llm_answer"] = results
+    # Create tasks for all models to run concurrently
+    tasks = [
+        process_model_batch(eval_df, model_key, model_name, max_concurrent)
+        for model_key, model_name in models.items()
+    ]
+
+    # Run all model processing tasks concurrently
+    results = await asyncio.gather(*tasks)
+
+    # Update the dataframe with results from all models
+    for model_key, model_results in results:
+        eval_df.loc[eval_df.run_name.str.contains(model_key), "llm_answer"] = (
+            model_results
+        )
+
     return eval_df
 
 
@@ -91,7 +123,9 @@ async def process_single(prompt: str, model: str, sem: Semaphore) -> dict[str, A
     return None
 
 
-async def process_with_progress(prompt, model, sem, pbar):
+async def process_with_progress(
+    prompt: str, model: str, sem: Semaphore, pbar: tqdm
+) -> dict[str, Any]:
     """Process a single prompt and update progress bar.
 
     Callback function that processes a prompt and ensures the progress bar
@@ -156,7 +190,7 @@ def encode_image_to_base64(image: str) -> str:
     return base64.b64encode(decoded_image).decode("utf-8")
 
 
-def load_answer(answer):
+def load_answer(answer: str | dict[str, Any]) -> dict[str, Any]:
     """Parse an answer into a dictionary format.
 
     Attempts multiple parsing methods: direct dict access, ast.literal_eval,
@@ -326,7 +360,7 @@ def create_llm_message_content(row) -> list[dict[str, Any]]:
     return content
 
 
-def create_prompt(row):
+def create_prompt(row: pd.Series) -> str:
     """Create an appropriate prompt based on the question format.
 
     Selects either open-ended or MCQ prompt template and formats it
@@ -353,7 +387,7 @@ def create_prompt(row):
     return np.nan
 
 
-def xml_extract(text):
+def xml_extract(text: str) -> str:
     """Extract an answer letter from XML tags in text.
 
     Looks for a pattern like <answer>A</answer> and extracts the letter.
@@ -443,7 +477,7 @@ def run_majority_voting(
     return k_values, means, stds
 
 
-def wilson_ci(p, n, z=1.96):
+def wilson_ci(p: float, n: int, z: float = 1.96) -> tuple[float, float]:
     """Calculate Wilson confidence interval for a proportion."""
     denominator = 1 + z**2 / n
     center = (p + z**2 / (2 * n)) / denominator

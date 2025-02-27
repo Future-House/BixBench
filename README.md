@@ -12,9 +12,9 @@
 
 BixBench is a benchmark designed to evaluate AI agents on real-world bioinformatics tasks. 
 This benchmark tests AI agents' ability to:
-- Explore and analyze diverse datasets
-- Perform multi-step computational analyses
-- Interpret results in the context of the research question
+- Explore biological datasets
+- Perform long, multi-step computational analyses
+- Interpret nuanced results in the context of a research question
 
 BixBench presents AI agents with open-ended or multiple-choice tasks, requiring them to navigate datasets, execute code (Python, R, Bash), generate scientific hypotheses, and validate them. 
 The dataset contains 296 questions derived from 53 real-world, published Jupyter notebooks and related data (capsules).
@@ -57,6 +57,13 @@ Authenticate with Hugging Face:
 
 ```bash
 huggingface-cli login
+```
+
+Install environment docker image:
+
+```bash
+docker pull futurehouse/bixbench:aviary-notebook-env
+export NB_ENVIRONMENT_DOCKER_IMAGE=futurehouse/bixbench/aviary-notebook-env:latest
 ```
 
 ## Running Zero-shot Evaluations
@@ -145,7 +152,6 @@ Results are saved to the `bixbench_results/` directory.
 
 ### Key Outputs:
 
-- `eval_loop_results.csv`: Raw evaluation results
 - `eval_df.csv`: Processed evaluation dataframe
 - Visualization plots comparing model performance with/without vision capabilities
 - Visualization plots comparing performance with/without refusal options
