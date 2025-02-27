@@ -179,9 +179,9 @@ class TraceGenerator:
             load_mcq(i, open_question=True, question_id=i["id"]) for i in raw_questions
         ]
         problem = self.config["base_prompt"].format(
-            questions="\n-------\n".join(
-                [i.question_prompt for i in processed_questions]
-            )
+            questions="\n-------\n".join([
+                i.question_prompt for i in processed_questions
+            ])
         )
         answer = {i.question_id: i.ideal_answer for i in processed_questions}
         work_dir = (self.config["local_workspace_dir"] / capsule["uuid"]).absolute()
@@ -234,7 +234,7 @@ class TraceGenerator:
             )
 
             # Store trajectories for each environment
-            for trajectory, env in zip(trajectories, environments):
+            for trajectory, env in zip(trajectories, environments, strict=True):
                 await self.store_trajectory(trajectory, env)
 
 
