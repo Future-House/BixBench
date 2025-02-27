@@ -119,7 +119,6 @@ async def evaluate(
                 "unsure": unsure_answer,
             })
 
-
     # make directory if it doesn't exist
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
