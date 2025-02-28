@@ -63,7 +63,7 @@ def plot_model_comparison(results, model1, model2):
 
     # Load baselines from JSON file
     # TODO: avoid hardcoding out paths or make this an optional parameter
-    with open("bixbench_results/zero_shot_baselines.json") as f:
+    with open("bixbench_results/zero_shot_baselines_accuracies.json") as f:
         baselines = json.load(f)
     # Draw baseline lines
     draw_baselines(x, baselines, barWidth)
