@@ -3,7 +3,7 @@
     <img alt="Paper" src="https://img.shields.io/badge/arXiv-arXiv:2409.11363-b31b1b.svg">
     <a href = "https://github.com/Future-House/BixBench">
     <img alt="GitHub" src="https://img.shields.io/badge/GitHub-Repository-181717.svg">
-    <a href="https://huggingface.co/datasets/futurehouse/BixBench-internal">
+    <a href="https://huggingface.co/datasets/futurehouse/BixBench">
     <img alt="Dataset" src="https://img.shields.io/badge/Hugging%20Face-Dataset-yellow.svg">
 </p>
 
@@ -19,7 +19,7 @@ This benchmark tests AI agents' ability to:
 BixBench presents AI agents with open-ended or multiple-choice tasks, requiring them to navigate datasets, execute code (Python, R, Bash), generate scientific hypotheses, and validate them.
 The dataset contains 296 questions derived from 53 real-world, published Jupyter notebooks and related data (capsules).
 
-You can find the BixBench dataset in [Hugging Face]() and the paper [here]().
+You can find the BixBench dataset in [Hugging Face](https://huggingface.co/datasets/futurehouse/BixBench) and the paper [here]().
 
 ## Installation
 
