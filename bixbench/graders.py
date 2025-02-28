@@ -11,9 +11,9 @@ def grade_mcq_answer(target, predicted, unsure):
     unsure = unsure.upper()
 
     correct = predicted == target
-    # checks if the predicted answer is the refusal option.
+    # checks if the predicted answer is the refusal option. (LLm is unsure)
     # Only for MCQ + w/resusal setting.Used to compute precision
-    refusal = predicted != unsure
+    refusal = predicted == unsure
 
     grade = 1 if correct else 0
     return grade, correct, refusal
@@ -53,12 +53,16 @@ async def grade_open_ended_answer(question, target, predicted, llm_client):
 
 
 def compute_metrics(grades: list[bool], is_refued: list[bool]) -> dict:
+    """Accuracy = (num correct) / (num questions)
+    precision = (num correct) / ((num questions) - (num unsure)).
+    """
     if len(grades) != len(is_refued):
         raise ValueError("is_correct and is_refued must have the same length")
 
     n_total = len(grades)
     n_correct = sum(grades)
-    n_sure = sum(1 for x in is_refued if x)
+    n_unsure = sum(1 for x in is_refued if x)
+    n_sure = n_total - n_unsure
     # Calculate metrics
     accuracy = n_correct / n_total if n_total > 0 else 0
     precision = n_correct / n_sure if n_sure > 0 else 0
