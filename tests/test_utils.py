@@ -1,7 +1,10 @@
-import pytest
-from bixbench.utils import parse_response, randomize_choices, EvalMode
-from bixbench.graders import grade_mcq_answer, compute_metrics
 import sys
+
+import pytest
+
+from bixbench.graders import compute_metrics, grade_mcq_answer
+from bixbench.utils import EvalMode, parse_response, randomize_choices
+
 sys.path.append("../")
 
 
@@ -22,7 +25,6 @@ def test_randomize_choices(
     shuffled_choices, answer, unsure = randomize_choices(
         ideal, distractors, with_refusal
     )
-    print(shuffled_choices)
     # 3 distractors + target +/- refusal option
     assert len(shuffled_choices) == expected_length
     if with_refusal:
@@ -77,8 +79,9 @@ def test_randomize_choices(
 def test_parse_response(text: str, eval_mode: EvalMode, tag: str, expected: str):
     assert parse_response(text=text, tag=tag, eval_mode=eval_mode) == expected
 
+
 @pytest.mark.parametrize(
-    ("target", "predicted", "unsure", "expected_grade","expected_refusal"),
+    ("target", "predicted", "unsure", "expected_grade", "expected_refusal"),
     [
         pytest.param(
             "A", "A", "B", 1, False,
@@ -91,29 +94,30 @@ def test_parse_response(text: str, eval_mode: EvalMode, tag: str, expected: str)
     ],
 )
 def test_grade_mcq_answer(target: str, predicted: str, unsure: str, expected_grade: int, expected_refusal: bool):
-    print(target, predicted, unsure)
+
     grade, _, refusal = grade_mcq_answer(target, predicted, unsure)
-    print(grade, refusal)
+
     assert grade == expected_grade
     assert refusal == expected_refusal
+
 
 @pytest.mark.parametrize(
     ("grades", "is_refused", "metrics"),
     [
         pytest.param(
-            [1,1,1,1], [False,False,False,False], {"accuracy": 1, "precision": 1, "coverage": 1, "n_total": 4, "n_correct": 4, "n_sure": 4},
+            [1, 1, 1, 1], [False, False, False, False], {"accuracy": 1, "precision": 1, "coverage": 1, "n_total": 4, "n_correct": 4, "n_sure": 4},
             id="correct_and_sure"
         ),
         pytest.param(
-            [1,1,1,1], [True, True, True, True], {"accuracy": 1, "precision": 0, "coverage": 0, "n_total": 4, "n_correct": 4, "n_sure": 0},
+            [1, 1, 1, 1], [True, True, True, True], {"accuracy": 1, "precision": 0, "coverage": 0, "n_total": 4, "n_correct": 4, "n_sure": 0},
             id="correct_and_unsure"
         ),
         pytest.param(
-            [0,0,0,0], [False,False,False,False], {"accuracy": 0, "precision": 0, "coverage": 1, "n_total": 4, "n_correct": 0, "n_sure": 4},
+            [0, 0, 0, 0], [False, False, False, False], {"accuracy": 0, "precision": 0, "coverage": 1, "n_total": 4, "n_correct": 0, "n_sure": 4},
             id="incorrect_and_sure"
         ),
         pytest.param(
-            [0,0,0,0], [True, True, True, True], {"accuracy": 0, "precision": 0, "coverage": 0, "n_total": 4, "n_correct": 0, "n_sure": 0},
+            [0, 0, 0, 0], [True, True, True, True], {"accuracy": 0, "precision": 0, "coverage": 0, "n_total": 4, "n_correct": 0, "n_sure": 0},
             id="incorrect_and_unsure"
         ),
     ],
@@ -121,4 +125,3 @@ def test_grade_mcq_answer(target: str, predicted: str, unsure: str, expected_gra
 def test_compute_metrics(grades: list[bool], is_refused: list[bool], metrics: dict):
     result = compute_metrics(grades, is_refused)
     assert result == metrics
-    
