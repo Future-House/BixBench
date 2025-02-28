@@ -1,3 +1,4 @@
+from .graders import compute_metrics, grade_mcq_answer, grade_open_ended_answer
 from .prompts import (
     MCQ_PROMPT_TEMPLATE_WITH_REFUSAL,
     MCQ_PROMPT_TEMPLATE_WITHOUT_REFUSAL,
@@ -14,6 +15,9 @@ __all__ = [
     "EvalMode",
     "LLMConfig",
     "ZeroshotBaseline",
+    "compute_metrics",
+    "grade_mcq_answer",
+    "grade_open_ended_answer",
     "parse_response",
     "randomize_choices",
 ]
