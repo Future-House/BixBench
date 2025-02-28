@@ -3,6 +3,7 @@
 
 import json
 
+import config as cfg
 import matplotlib.pyplot as plt
 import numpy as np
 from plot_style import set_fh_mpl_style
@@ -10,7 +11,16 @@ from plot_style import set_fh_mpl_style
 set_fh_mpl_style()
 
 
-def majority_vote_accuracy_by_k(run_results: dict, name="") -> None:
+def majority_vote_accuracy_by_k(
+    run_results: dict,
+    name="",
+    random_baselines: list[float] | None = None,
+    random_baselines_labels: list[str] | None = None,
+) -> None:
+    if random_baselines_labels is None:
+        random_baselines_labels = ["With Refusal Option Random Guess", "Without Refusal Option Random Guess"]
+    if random_baselines is None:
+        random_baselines = [0.2, 0.25]
     plt.figure(figsize=(15, 6))
 
     for run_name, (k_values, means, stds) in run_results.items():
@@ -30,51 +40,55 @@ def majority_vote_accuracy_by_k(run_results: dict, name="") -> None:
     plt.xlim(1, 9)
     plt.title("Majority Voting Accuracy vs Number of Votes")
     plt.xticks(k_values)
-    if name == "image_comparison":
-        plt.axhline(y=0.2, color="red", linestyle=":", label="Random Guess")
-    else:
+
+    for i, (baseline, label) in enumerate(
+        zip(random_baselines, random_baselines_labels, strict=True)
+    ):
         plt.axhline(
-            y=0.2,
-            color="red",
+            y=baseline,
+            color="red" if i == 0 else "green",
             linestyle=":",
-            label="With Insufficient Option Random Guess",
-        )
-        plt.axhline(
-            y=0.25,
-            color="green",
-            linestyle=":",
-            label="Without Insufficient Option Random Guess",
+            label=label,
         )
     plt.legend()  # bbox_to_anchor=(1.05, 0), loc='lower left')
     plt.grid(alpha=0.3, visible=True)
-    # TODO: avoid hardcoding out paths or make this an optional parameter
-    plt.savefig(f"bixbench_results/majority_vote_accuracy_{name}.png")
+    plt.savefig(f"{cfg.RESULTS_DIR}/majority_vote_accuracy_{name}.png")
     plt.show()
 
 
 def plot_model_comparison(results, model1, model2):
     """Create a bar chart comparing model performance across different formats."""
     # Setup
-    plt.figure(figsize=(12, 6))
-    barWidth = 0.35
+    plt.figure(figsize=(10, 5))
+    bar_width = 0.35
     formats = ["open", "mcq_with_refusal", "mcq_without_refusal"]
     x = np.arange(len(formats))
-    colors = {model1: "orange", model2: "#b3d9f2"}
+
+    # Update colors to match notebook
+    color_cycle = ["#1BBC9B", "#FF8C00", "#FF69B4", "#ce8aed", "#80cedb", "#FFFFFF"]
+    colors = {model1: color_cycle[0], model2: color_cycle[1]}
 
     # Load baselines from JSON file
-    # TODO: avoid hardcoding out paths or make this an optional parameter
-    with open("bixbench_results/zero_shot_baselines_accuracies.json") as f:
+    with open(f"{cfg.RESULTS_DIR}/zero_shot_baselines.json", encoding="utf-8") as f:
         baselines = json.load(f)
+    baselines = {k: v["accuracy"] for k, v in baselines.items()}
+    baselines["random w/ refusal"] = 0.2
+    baselines["random w/o refusal"] = 0.25
     # Draw baseline lines
-    draw_baselines(x, baselines, barWidth)
+    draw_baselines(x, baselines, bar_width)
 
     # Draw model performance bars
-    draw_model_bars(x, results, barWidth, formats, colors, model1, model2)
+    draw_model_bars(x, results, bar_width, formats, colors, model1, model2)
 
     # Customize plot appearance
-    plt.ylabel("Accuracy")
+    plt.ylabel("Accuracy", fontsize=18)
+    plt.yticks(np.arange(0, 0.5, 0.1), fontsize=18)
     plt.title("Model Performance by Question Format with Wilson CI @95%")
-    plt.xticks(x + barWidth / 2, ["Open-ended", "MCQ w/ refusal", "MCQ w/o refusal"])
+    plt.xticks(
+        x + bar_width / 2,
+        ["Open-answer", "MCQ w/ refusal", "MCQ w/o refusal"],
+        fontsize=18,
+    )
 
     # Create legend with proper order
     handles, labels = plt.gca().get_legend_handles_labels()
@@ -84,30 +98,30 @@ def plot_model_comparison(results, model1, model2):
     plt.legend(handles, labels)
 
     # Add grid and display
-    plt.grid(visible=True, axis="y", linestyle="--", alpha=0.7)
+    plt.grid(True, axis="y", linestyle="--", alpha=0.7)
     plt.tight_layout()
-    plt.savefig("bixbench_results/model_comparison.png")
+    plt.savefig(f"{cfg.RESULTS_DIR}/bixbench_results_format_comparison.png")
     plt.show()
 
 
-def draw_baselines(x, baselines, barWidth):
+def draw_baselines(x, baselines, bar_width):
     """Draw baseline lines on the plot."""
     baseline_color = "grey"
     random_color = "grey"
     line_width = 2
     extension = 0.05
-    half_bar = barWidth / 2
+    half_bar = bar_width / 2
     baseline_bar = "-"
 
     # Define baseline positions
     baseline_positions = [
         # Format: (baseline_key, x_position, width_offset)
-        ("claude-3-5-sonnet-latest-grader-openended", x[0], 0),
-        ("gpt-4o-grader-openended", x[0], barWidth),
-        ("claude-3-5-sonnet-latest-grader-mcq-refusal-True", x[1], 0),
-        ("gpt-4o-grader-mcq-refusal-True", x[1], barWidth),
-        ("claude-3-5-sonnet-latest-grader-mcq-refusal-False", x[2], 0),
-        ("gpt-4o-grader-mcq-refusal-False", x[2], barWidth),
+        ("gpt-4o-grader-openended", x[0], 0),
+        ("claude-3-5-sonnet-latest-grader-openended", x[0], bar_width),
+        ("gpt-4o-grader-mcq-refusal-True", x[1], 0),
+        ("claude-3-5-sonnet-latest-grader-mcq-refusal-True", x[1], bar_width),
+        ("gpt-4o-grader-mcq-refusal-False", x[2], 0),
+        ("claude-3-5-sonnet-latest-grader-mcq-refusal-False", x[2], bar_width),
     ]
 
     # Draw model baselines
@@ -115,22 +129,18 @@ def draw_baselines(x, baselines, barWidth):
         plt.hlines(
             y=baselines[baseline_key],
             xmin=x_pos - extension - half_bar + width_offset,
-            xmax=x_pos + barWidth + extension - half_bar + width_offset,
+            xmax=x_pos + bar_width + extension - half_bar + width_offset,
             color=baseline_color,
             linestyle=baseline_bar,
             linewidth=line_width,
-            label=(
-                "baseline"
-                if baseline_key == "claude-3-5-sonnet-latest-grader-openended"
-                else ""
-            ),
+            label="baseline" if baseline_key == "gpt-4o-grader-openended" else "",
         )
 
     # Draw random baselines
     plt.hlines(
         y=baselines["random w/ refusal"],
         xmin=x[1] - extension - half_bar,
-        xmax=x[1] + 2 * barWidth + extension - half_bar,
+        xmax=x[1] + 2 * bar_width + extension - half_bar,
         color=random_color,
         linestyle="--",
         linewidth=line_width,
@@ -140,14 +150,14 @@ def draw_baselines(x, baselines, barWidth):
     plt.hlines(
         y=baselines["random w/o refusal"],
         xmin=x[2] - extension - half_bar,
-        xmax=x[2] + 2 * barWidth + extension - half_bar,
+        xmax=x[2] + 2 * bar_width + extension - half_bar,
         color=random_color,
         linestyle="--",
         linewidth=line_width,
     )
 
 
-def draw_model_bars(x, results, barWidth, formats, colors, model1, model2):
+def draw_model_bars(x, results, bar_width, formats, colors, model1, model2):
     """Draw performance bars for each model."""
     for i, model in enumerate([model1, model2]):
         model_results = [r for r in results if r["model"] == model]
@@ -170,9 +180,9 @@ def draw_model_bars(x, results, barWidth, formats, colors, model1, model2):
         ])
 
         plt.bar(
-            x + i * barWidth,
+            x + i * bar_width,
             means,
-            barWidth,
+            bar_width,
             label=model,
             color=colors[model],
             alpha=0.5 if model == model1 else 1,

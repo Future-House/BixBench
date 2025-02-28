@@ -28,3 +28,7 @@ paths:
   traces_dir: "data/traces"
   data_folder: "data/capsules"
   hf_repo_id: "futurehouse/bixbench-internal"
+
+postprocessing:
+  total_questions: 296
+  total_iterations: 10

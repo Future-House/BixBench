@@ -83,18 +83,17 @@ def test_parse_response(text: str, eval_mode: EvalMode, tag: str, expected: str)
 @pytest.mark.parametrize(
     ("target", "predicted", "unsure", "expected_grade", "expected_refusal"),
     [
-        pytest.param(
-            "A", "A", "B", 1, False,
-            id="correct_and_sure"
-        ),
-        pytest.param(
-            "A", "B", "B", 0, True,
-            id="incorrect_and_unsure"
-        ),
+        pytest.param("A", "A", "B", 1, False, id="correct_and_sure"),
+        pytest.param("A", "B", "B", 0, True, id="incorrect_and_unsure"),
     ],
 )
-def test_grade_mcq_answer(target: str, predicted: str, unsure: str, expected_grade: int, expected_refusal: bool):
-
+def test_grade_mcq_answer(
+    target: str,
+    predicted: str,
+    unsure: str,
+    expected_grade: int,
+    expected_refusal: bool,
+):
     grade, _, refusal = grade_mcq_answer(target, predicted, unsure)
 
     assert grade == expected_grade
@@ -105,20 +104,56 @@ def test_grade_mcq_answer(target: str, predicted: str, unsure: str, expected_gra
     ("grades", "is_refused", "metrics"),
     [
         pytest.param(
-            [1, 1, 1, 1], [False, False, False, False], {"accuracy": 1, "precision": 1, "coverage": 1, "n_total": 4, "n_correct": 4, "n_sure": 4},
-            id="correct_and_sure"
+            [1, 1, 1, 1],
+            [False, False, False, False],
+            {
+                "accuracy": 1,
+                "precision": 1,
+                "coverage": 1,
+                "n_total": 4,
+                "n_correct": 4,
+                "n_sure": 4,
+            },
+            id="correct_and_sure",
         ),
         pytest.param(
-            [1, 1, 1, 1], [True, True, True, True], {"accuracy": 1, "precision": 0, "coverage": 0, "n_total": 4, "n_correct": 4, "n_sure": 0},
-            id="correct_and_unsure"
+            [1, 1, 1, 1],
+            [True, True, True, True],
+            {
+                "accuracy": 1,
+                "precision": 0,
+                "coverage": 0,
+                "n_total": 4,
+                "n_correct": 4,
+                "n_sure": 0,
+            },
+            id="correct_and_unsure",
         ),
         pytest.param(
-            [0, 0, 0, 0], [False, False, False, False], {"accuracy": 0, "precision": 0, "coverage": 1, "n_total": 4, "n_correct": 0, "n_sure": 4},
-            id="incorrect_and_sure"
+            [0, 0, 0, 0],
+            [False, False, False, False],
+            {
+                "accuracy": 0,
+                "precision": 0,
+                "coverage": 1,
+                "n_total": 4,
+                "n_correct": 0,
+                "n_sure": 4,
+            },
+            id="incorrect_and_sure",
         ),
         pytest.param(
-            [0, 0, 0, 0], [True, True, True, True], {"accuracy": 0, "precision": 0, "coverage": 0, "n_total": 4, "n_correct": 0, "n_sure": 0},
-            id="incorrect_and_unsure"
+            [0, 0, 0, 0],
+            [True, True, True, True],
+            {
+                "accuracy": 0,
+                "precision": 0,
+                "coverage": 0,
+                "n_total": 4,
+                "n_correct": 0,
+                "n_sure": 0,
+            },
+            id="incorrect_and_unsure",
         ),
     ],
 )

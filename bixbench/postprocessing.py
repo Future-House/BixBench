@@ -138,13 +138,21 @@ async def run_majority_vote(eval_df: pd.DataFrame, k_value: int = 10) -> None:
 
     # Plot with vision and without vision
     plotting_utils.majority_vote_accuracy_by_k(
-        {value: run_results[key] for key, value in r1.items()}, name="image_comparison"
+        {value: run_results[key] for key, value in r1.items()},
+        name="image_comparison",
+        random_baselines=[0.2],
+        random_baselines_labels=["Random Guess"],
     )
 
     # Plot with and without refusal option
     plotting_utils.majority_vote_accuracy_by_k(
         {value: run_results[key] for key, value in r2.items()},
         name="refusal_option_comparison",
+        random_baselines=[0.2, 0.25],
+        random_baselines_labels=[
+            "With Refusal Option Random Guess",
+            "Without Refusal Option Random Guess",
+        ],
     )
 
 
@@ -175,13 +183,15 @@ async def compare_capsule_mode(eval_df: pd.DataFrame) -> None:
     eval_df = eval_df[~eval_df.run_name.str.contains("no_image")]
 
     # Calculate means and confidence intervals
-    results = calculate_results(eval_df)
+    results = calculate_results(eval_df, total_questions=2960)
 
     # Plot results
     plotting_utils.plot_model_comparison(results, model1, model2)
 
 
-def calculate_results(df: pd.DataFrame) -> list[dict]:
+def calculate_results(
+    df: pd.DataFrame, total_questions: int | None = None
+) -> list[dict]:
     """
     Calculate means and confidence intervals for each model and format.
 
@@ -197,8 +207,12 @@ def calculate_results(df: pd.DataFrame) -> list[dict]:
             mask = (df["model"] == model) & (df["format"] == fmt)
             scores = df[mask]["correct"]
             if len(scores) > 0:
-                mean = scores.mean()
-                n = len(scores)
+                mean = (
+                    scores.sum() / total_questions
+                    if total_questions is not None
+                    else scores.mean()
+                )
+                n = total_questions if total_questions is not None else len(scores)
                 ci_low, ci_high = utils.wilson_ci(mean, n)
                 results.append({
                     "model": model,
@@ -227,18 +241,18 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    # Load raw trajectory data
-    os.makedirs("bixbench_results", exist_ok=True)
-    data = load_raw_data(args.data_path)
+    # # Load raw trajectory data
+    # os.makedirs("bixbench_results", exist_ok=True)
+    # data = load_raw_data(args.data_path)
 
-    # Process trajectories and save eval df
-    eval_df = asyncio.run(process_trajectories(data, checkpointing=args.checkpointing))
+    # # Process trajectories and save eval df
+    # eval_df = asyncio.run(process_trajectories(data, checkpointing=args.checkpointing))
 
     if args.checkpointing:
         eval_df = pd.read_csv("bixbench_results/eval_df.csv")
         eval_df["correct"] = eval_df["correct"].astype(bool)
 
     # Run majority vote
-    asyncio.run(run_majority_vote(eval_df, k_value=10))
+    # asyncio.run(run_majority_vote(eval_df, k_value=10))
     # Compare capsule mode
     asyncio.run(compare_capsule_mode(eval_df))
