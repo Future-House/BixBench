@@ -19,7 +19,22 @@ This benchmark tests AI agents' ability to:
 BixBench presents AI agents with open-ended or multiple-choice tasks, requiring them to navigate datasets, execute code (Python, R, Bash), generate scientific hypotheses, and validate them.
 The dataset contains 296 questions derived from 53 real-world, published Jupyter notebooks and related data (capsules).
 
-You can find the BixBench dataset in [Hugging Face](https://huggingface.co/datasets/futurehouse/BixBench) and the paper [here]().
+You can find the BixBench dataset in [Hugging Face](https://huggingface.co/datasets/futurehouse/BixBench), the paper [here](), and the blog post [here](https://futurehouse.org/blog/bixbench/).
+
+This repository enables three separate functions:
+
+1. Agentic evaluations of LLMs on BixBench
+2. Zero-shot evaluations of LLMs on BixBench
+3. Replicating the BixBench paper results
+
+## Links
+
+- [Installation](#installation)
+- [Quick start](#quick-start)
+- [Results](#latest-results)
+- [Use your own agent](#use-your-own-agent)
+- [Baselines](#baselines)
+- [Ackowledge](#acknowledge)
 
 ## Installation
 
@@ -30,137 +45,48 @@ cd bixbench
 
 # Install dependencies
 pip install -e .
+
+# Authenticate with Hugging Face
+huggingface-cli login
+
+# Pull the docker for agentic evaluations
+docker pull futurehouse/bixbench:aviary-notebook-env
 ```
 
 ## Prerequisites
 
 ### API Keys
 
-Create a `.env` file with your API keys:
+We support all LLMs that are supported by [litellm](https://github.com/BerriAI/litellm). Create a `.env` file with the API keys for the LLMs you want to evaluate. For example:
 
 ```
-HF_TOKEN = "your-hf-token"
 OPENAI_API_KEY = "your-openai-api-key"
 ANTHROPIC_API_KEY = "your-anthropic-api-key"
 ```
 
-For more details on Hugging Face tokens, see https://huggingface.co/settings/tokens.
+## Agentic Evaluations
 
-You can also set environment variables directly:
+BixBench evaluates agents' ability to create complex Jupyter notebooks for real-world bioinformatics research questions. To evaluate an LLM on BixBench we separate the process into two steps:
 
-```bash
-export OPENAI_API_KEY=your_openai_key
-export ANTHROPIC_API_KEY=your_anthropic_key
-export HUGGING_FACE_TOKEN=your_hf_token
-```
+1. Generate trajectories
+2. Evaluate the trajectories via postprocessing
 
-Authenticate with Hugging Face:
+### Generate Trajectories
 
-```bash
-huggingface-cli login
-```
-
-Install environment docker image:
+BixBench evaluates agents' ability to create complex Jupyter notebooks for real-world bioinformatics research questions. To generate these trajectories, it's as simple as configuring the `config.yaml` file and running the following command:
 
 ```bash
-docker pull futurehouse/bixbench:aviary-notebook-env
-export NB_ENVIRONMENT_DOCKER_IMAGE=futurehouse/bixbench/aviary-notebook-env:latest
-```
-
-## Running Zero-shot Evaluations
-
-You can run zero-shot evaluations using the `run_zeroshot_evals.py` script. This code automatically loads the BixBench dataset from Hugging Face.
-
-The script supports two task types:
-
-1. Multiple-choice question (MCQ) type
-2. Open-ended question type
-
-You can also evaluate LLMs with the option to refuse answering when information is insufficient. The `--with-refusal` flag adds "Insufficient information to answer the question" to the choices. This option is NOT enabled by default.
-
-### MCQ (Multiple Choice Question) Mode
-
-Run with refusal option:
-
-```bash
-python run_zeroshot_evals.py --eval-mode mcq --with-refusal
-```
-
-Run without refusal option:
-
-```bash
-python run_zeroshot_evals.py --eval-mode mcq
-```
-
-### Open-answer Mode
-
-Run with a specific model:
-
-```bash
-python run_zeroshot_evals.py --eval-mode openanswer --model "Claude 3.5 Sonnet" --temperature 0.5
-```
-
-Evaluation results are saved as CSV files in the `bixbench_results/` directory.
-
-## Grading Responses
-
-After running evaluations, you can grade the model responses using the `grade_outputs.py` script.
-
-### For MCQ responses:
-
-```bash
-python grade_outputs.py --input-file bixbench_results/results_mcq_False_gpt-4o_1.0.csv --eval-mode mcq
-```
-
-### For open-ended responses:
-
-```bash
-python grade_outputs.py --input-file bixbench_results/results_openanswer_False_gpt-4o_1.0.csv --eval-mode openanswer --model "Claude 3.5 Sonnet"
-```
-
-By default, the script uses `gpt-4o` at `temp=1.0` for grading open-ended responses.
-
-## Generating Traces
-
-BixBench evaluates agents' ability to create complex Jupyter notebooks for real-world bioinformatics research questions. To generate these traces:
-
-```bash
-python bixbench/generate_traces.py
+python bixbench/generate_trajectories.py
 ```
 
 This will:
 
 1. Download the BixBench dataset from Hugging Face (only needed once)
 2. Preprocess each capsule in the dataset
-3. Generate and store traces including the final agent answer and Jupyter notebook
+3. Generate and store trajectories including the final agent answer and Jupyter notebook in the directory specified in `config.yaml`
 
-Traces are saved in the directory specified in `config.yaml`.
 
-## Running Post-processing and Analysis
-
-Process raw traces to evaluate agent performance:
-
-```bash
-python bixbench/postprocessing.py --data_path bixbench_results/raw_trajectory_data.csv
-```
-
-This will:
-
-1. Load and process raw data
-2. Create an evaluation dataframe
-3. Run majority vote analysis (for MCQ questions)
-4. Compare model performance across different configurations
-5. Generate visualizations
-
-Results are saved to the `bixbench_results/` directory.
-
-### Key Outputs:
-
-- `eval_df.csv`: Processed evaluation dataframe
-- Visualization plots comparing model performance with/without vision capabilities
-- Visualization plots comparing performance with/without refusal options
-
-## Customization
+### Customization
 
 Edit `bixbench/config.yaml` to modify:
 
@@ -172,4 +98,53 @@ Edit `bixbench/config.yaml` to modify:
 
 ## Using Your Own Agent
 
-To use your own agent, use the `generate_traces.py` script to generate traces in the same format as the BixBench traces, then use the `postprocessing.py` script to evaluate your agent's performance.
+To use your own agent, use the `generate_trajectories.py` script to generate trajectories in the same format as the BixBench trajectories, then use the `postprocessing.py` script to evaluate your agent's performance.
+
+### Evaluate trajectories
+
+To evaluate the trajectories, we use the `postprocessing.py` script:
+
+```bash
+python bixbench/postprocessing.py --data_path bixbench_results/raw_trajectory_data.csv
+```
+
+This script will:
+
+1. Load the raw trajectory data
+2. Create an evaluation dataframe
+3. Run majority vote analysis (for MCQ questions)
+4. Compare model performance across different run groups defined in `config.py`
+5. Generate visualizations
+
+Trajectories are saved in the `bixbench_results/` directory as json files.
+
+## Zero-shot Evaluations & Grading
+
+You can run zero-shot evaluations using the `run_zeroshot_evals.py` script and then automatically grade the responses using the `grade_outputs.py` script. This code:
+
+1. Loads the BixBench dataset from Hugging Face
+2. Evaluates the LLM on the dataset, outputting a CSV file with the results
+3. Grades the responses using LLM-based graders for open-ended answer or exact match for MCQs
+4. Saves the final results as a JSON file
+
+The scripts can be configured to run with open-ended questions, multiple-choice questions (with or without a refusal option), different models, and different temperatures. To explore the different options, run the scripts with the `--help` flag.
+
+## Replicating the BixBench Paper Results
+
+To replicate the BixBench paper results for agentic evaluations, you can download the raw data from 2,120 trajectories and its respective postprocessed evaluation dataframe:
+
+```bash
+wget https://storage.googleapis.com/bixbench-results/raw_trajectory_data.csv -P bixbench_results/
+wget https://storage.googleapis.com/bixbench-results/eval_df.csv -P bixbench_results/
+```
+
+You can then run the postprocessing script to generate the evaluation dataframe and analysis plots using the `--checkpointing` flag to load the evaluation dataframe directly:
+
+```bash
+python bixbench/postprocessing.py --data_path bixbench_results/raw_trajectory_data.csv --checkpointing
+```
+
+## Acknowledge
+
+BixBench is the product of a collaboration between [FutureHouse](https://futurehouse.org) and [ScienceMachine](https://www.sciencemachine.ai/).
+
