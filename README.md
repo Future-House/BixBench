@@ -146,9 +146,10 @@ python bixbench/postprocessing.py --data_path bixbench_results/raw_trajectory_da
 ```
 
 You will see the following figures from the paper:
+![Performance Comparison](bixbench_results/bixbench_results_comparison.png)
+
 ![Majority Vote Accuracy](bixbench_results/majority_vote_accuracy_refusal_option_comparison.png)
 
-![Performance Comparison](bixbench_results/bixbench_results_comparison.png)
 
 ## Acknowledgments
 
