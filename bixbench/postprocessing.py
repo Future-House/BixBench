@@ -5,6 +5,7 @@ import json
 import operator
 import os
 
+import config as cfg
 import nbformat
 import pandas as pd
 from fhda.utils import view_notebook
@@ -156,7 +157,7 @@ async def run_majority_vote(eval_df: pd.DataFrame, k_value: int = 10) -> None:
     )
 
 
-async def compare_capsule_mode(eval_df: pd.DataFrame) -> None:
+async def compare_runs(eval_df: pd.DataFrame) -> None:
     """
     Compare performance between different model architectures.
 
@@ -166,62 +167,16 @@ async def compare_capsule_mode(eval_df: pd.DataFrame) -> None:
     This function analyzes and visualizes the performance differences between
     GPT-4o and Claude models across different question formats.
     """
-    # Define model names for clarity
-    model1, model2 = "gpt-4o", "claude-3-5-sonnet"
-
-    # Prepare data
-    eval_df["format"] = eval_df["run_name"].apply(
-        lambda x: (
-            "open"
-            if "open" in x
-            else ("mcq_with_refusal" if "with_refusal" in x else "mcq_without_refusal")
-        )
-    )
-    eval_df["model"] = eval_df["run_name"].apply(
-        lambda x: model1 if "4o" in x else model2
-    )
-    eval_df = eval_df[~eval_df.run_name.str.contains("no_image")]
+    # Filter eval_df to only include run_names configured in config.py
+    eval_df = eval_df[eval_df["run_name"].isin(utils.flatten_list(cfg.RUN_NAME_GROUPS))]
 
     # Calculate means and confidence intervals
-    results = calculate_results(eval_df, total_questions=2960)
+    results = utils.calculate_results(eval_df, total_questions=2960)
 
     # Plot results
-    plotting_utils.plot_model_comparison(results, model1, model2)
-
-
-def calculate_results(
-    df: pd.DataFrame, total_questions: int | None = None
-) -> list[dict]:
-    """
-    Calculate means and confidence intervals for each model and format.
-
-    Args:
-        df (pd.DataFrame): DataFrame containing model evaluation results
-
-    Returns:
-        list: List of dictionaries containing statistical results for each model and format
-    """
-    results = []
-    for model in df["model"].unique():
-        for fmt in ["open", "mcq_with_refusal", "mcq_without_refusal"]:
-            mask = (df["model"] == model) & (df["format"] == fmt)
-            scores = df[mask]["correct"]
-            if len(scores) > 0:
-                mean = (
-                    scores.sum() / total_questions
-                    if total_questions is not None
-                    else scores.mean()
-                )
-                n = total_questions if total_questions is not None else len(scores)
-                ci_low, ci_high = utils.wilson_ci(mean, n)
-                results.append({
-                    "model": model,
-                    "format": fmt,
-                    "mean": mean,
-                    "ci_low": ci_low,
-                    "ci_high": ci_high,
-                })
-    return results
+    plotting_utils.plot_model_comparison(
+        results, cfg.BASELINES, cfg.RUN_NAME_GROUPS, cfg.COLOR_GROUPS
+    )
 
 
 if __name__ == "__main__":
@@ -254,5 +209,6 @@ if __name__ == "__main__":
 
     # Run majority vote
     # asyncio.run(run_majority_vote(eval_df, k_value=10))
-    # Compare capsule mode
-    asyncio.run(compare_capsule_mode(eval_df))
+
+    # Compare runs
+    asyncio.run(compare_runs(eval_df))

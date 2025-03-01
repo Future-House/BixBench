@@ -53,7 +53,8 @@ async def grade_open_ended_answer(question, target, predicted, llm_client):
 
 
 def compute_metrics(grades: list[bool], is_refued: list[bool]) -> dict:
-    """Accuracy = (num correct) / (num questions)
+    """
+    Accuracy = (num correct) / (num questions)
     precision = (num correct) / ((num questions) - (num unsure)).
     """
     if len(grades) != len(is_refued):

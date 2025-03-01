@@ -1,12 +1,12 @@
 # DISCLAIMER: This file is highly tailored to the BixBench paper requirements.
 # It is not designed to be used as a general function for plotting model performance.
 
-import json
-
 import config as cfg
 import matplotlib.pyplot as plt
 import numpy as np
 from plot_style import set_fh_mpl_style
+
+from bixbench import postprocessing_utils as utils
 
 set_fh_mpl_style()
 
@@ -18,7 +18,10 @@ def majority_vote_accuracy_by_k(
     random_baselines_labels: list[str] | None = None,
 ) -> None:
     if random_baselines_labels is None:
-        random_baselines_labels = ["With Refusal Option Random Guess", "Without Refusal Option Random Guess"]
+        random_baselines_labels = [
+            "With Refusal Option Random Guess",
+            "Without Refusal Option Random Guess",
+        ]
     if random_baselines is None:
         random_baselines = [0.2, 0.25]
     plt.figure(figsize=(15, 6))
@@ -56,55 +59,39 @@ def majority_vote_accuracy_by_k(
     plt.show()
 
 
-def plot_model_comparison(results, model1, model2):
+def plot_model_comparison(results, baselines, run_groups, color_groups):
     """Create a bar chart comparing model performance across different formats."""
     # Setup
     plt.figure(figsize=(10, 5))
+    x_axis = np.arange(len(run_groups))
     bar_width = 0.35
-    formats = ["open", "mcq_with_refusal", "mcq_without_refusal"]
-    x = np.arange(len(formats))
-
-    # Update colors to match notebook
-    color_cycle = ["#1BBC9B", "#FF8C00", "#FF69B4", "#ce8aed", "#80cedb", "#FFFFFF"]
-    colors = {model1: color_cycle[0], model2: color_cycle[1]}
-
-    # Load baselines from JSON file
-    with open(f"{cfg.RESULTS_DIR}/zero_shot_baselines.json", encoding="utf-8") as f:
-        baselines = json.load(f)
-    baselines = {k: v["accuracy"] for k, v in baselines.items()}
-    baselines["random w/ refusal"] = 0.2
-    baselines["random w/o refusal"] = 0.25
-    # Draw baseline lines
-    draw_baselines(x, baselines, bar_width)
+    color_map = {group: cfg.COLOR_CYCLE[i] for i, group in enumerate(color_groups)}
 
     # Draw model performance bars
-    draw_model_bars(x, results, bar_width, formats, colors, model1, model2)
+    draw_model_bars(x_axis, results, run_groups, bar_width, color_map)
+
+    # Draw baseline lines
+    draw_baselines(x_axis, baselines, run_groups, bar_width)
+
 
     # Customize plot appearance
     plt.ylabel("Accuracy", fontsize=18)
     plt.yticks(np.arange(0, 0.5, 0.1), fontsize=18)
-    plt.title("Model Performance by Question Format with Wilson CI @95%")
+    plt.title("Model Performance by Group with Wilson CI @95%")
     plt.xticks(
-        x + bar_width / 2,
-        ["Open-answer", "MCQ w/ refusal", "MCQ w/o refusal"],
+        x_axis + bar_width / 2,
+        cfg.GROUP_TITLES,
         fontsize=18,
     )
 
-    # Create legend with proper order
-    handles, labels = plt.gca().get_legend_handles_labels()
-    order = [3, 2, 1, 0]  # This will put Claude first, then GPT-4
-    handles = [handles[idx] for idx in order]
-    labels = [labels[idx] for idx in order]
-    plt.legend(handles, labels)
-
-    # Add grid and display
-    plt.grid(True, axis="y", linestyle="--", alpha=0.7)
+    plt.legend()
+    plt.grid(visible=True, axis="y", linestyle="--", alpha=0.7)
     plt.tight_layout()
-    plt.savefig(f"{cfg.RESULTS_DIR}/bixbench_results_format_comparison.png")
+    plt.savefig(f"{cfg.RESULTS_DIR}/bixbench_results_comparison.png")
     plt.show()
 
 
-def draw_baselines(x, baselines, bar_width):
+def draw_baselines(x_axis, baselines, run_groups, bar_width):
     """Draw baseline lines on the plot."""
     baseline_color = "grey"
     random_color = "grey"
@@ -112,80 +99,66 @@ def draw_baselines(x, baselines, bar_width):
     extension = 0.05
     half_bar = bar_width / 2
     baseline_bar = "-"
-
+    flattened_run_groups = utils.flatten_list(run_groups)
     # Define baseline positions
     baseline_positions = [
-        # Format: (baseline_key, x_position, width_offset)
-        ("gpt-4o-grader-openended", x[0], 0),
-        ("claude-3-5-sonnet-latest-grader-openended", x[0], bar_width),
-        ("gpt-4o-grader-mcq-refusal-True", x[1], 0),
-        ("claude-3-5-sonnet-latest-grader-mcq-refusal-True", x[1], bar_width),
-        ("gpt-4o-grader-mcq-refusal-False", x[2], 0),
-        ("claude-3-5-sonnet-latest-grader-mcq-refusal-False", x[2], bar_width),
+        (baselines[run_name], x_axis[i // 2], 0 if i % 2 == 0 else bar_width)
+        for i, run_name in enumerate(flattened_run_groups)
     ]
 
     # Draw model baselines
-    for baseline_key, x_pos, width_offset in baseline_positions:
+    for c, (baseline, x_pos, width_offset) in enumerate(baseline_positions):
         plt.hlines(
-            y=baselines[baseline_key],
+            y=baseline,
             xmin=x_pos - extension - half_bar + width_offset,
             xmax=x_pos + bar_width + extension - half_bar + width_offset,
             color=baseline_color,
             linestyle=baseline_bar,
             linewidth=line_width,
-            label="baseline" if baseline_key == "gpt-4o-grader-openended" else "",
+            label="baseline" if c == 0 else None,
         )
 
-    # Draw random baselines
-    plt.hlines(
-        y=baselines["random w/ refusal"],
-        xmin=x[1] - extension - half_bar,
-        xmax=x[1] + 2 * bar_width + extension - half_bar,
-        color=random_color,
-        linestyle="--",
-        linewidth=line_width,
-        label="random",
-    )
-
-    plt.hlines(
-        y=baselines["random w/o refusal"],
-        xmin=x[2] - extension - half_bar,
-        xmax=x[2] + 2 * bar_width + extension - half_bar,
-        color=random_color,
-        linestyle="--",
-        linewidth=line_width,
-    )
+    # Draw random guess baselines
+    random_label_used = False
+    for c, baseline in enumerate(cfg.RANDOM_BASELINES):
+        if baseline is None:
+            continue
+        plt.hlines(
+            y=baseline,
+            xmin=x_axis[c] - extension - half_bar,
+            xmax=x_axis[c] + 2 * bar_width + extension - half_bar,
+            color=random_color,
+            linestyle="--",
+            linewidth=line_width,
+            label="random" if not random_label_used else None,
+        )
+        random_label_used = True
 
 
-def draw_model_bars(x, results, bar_width, formats, colors, model1, model2):
+def draw_model_bars(x_axis, results, run_groups, bar_width, color_map):
     """Draw performance bars for each model."""
-    for i, model in enumerate([model1, model2]):
-        model_results = [r for r in results if r["model"] == model]
-        means = [
-            next((r["mean"] for r in model_results if r["format"] == fmt), 0)
-            for fmt in formats
-        ]
-        ci_lows = [
-            next((r["ci_low"] for r in model_results if r["format"] == fmt), 0)
-            for fmt in formats
-        ]
-        ci_highs = [
-            next((r["ci_high"] for r in model_results if r["format"] == fmt), 0)
-            for fmt in formats
-        ]
-
-        yerr = np.array([
-            [m - low for m, low in zip(means, ci_lows, strict=True)],
-            [h - m for m, h in zip(means, ci_highs, strict=True)],
-        ])
-
-        plt.bar(
-            x + i * bar_width,
-            means,
-            bar_width,
-            label=model,
-            color=colors[model],
-            alpha=0.5 if model == model1 else 1,
-            yerr=yerr,
-            capsize=5,
-        )
+    for group_idx, group in enumerate(run_groups):
+        for j, run_name in enumerate(group):
+            mean = results[run_name]["mean"]
+            ci_low = results[run_name]["ci_low"]
+            ci_high = results[run_name]["ci_high"]
+            yerr = np.array([
+                [mean - ci_low],
+                [ci_high - mean],
+            ])
+            label, color = next(
+                [group, color]
+                for group, color in color_map.items()
+                if group in run_name
+            )
+            xpos = x_axis[group_idx] + j * bar_width
+            print(run_name, color, mean, yerr, label)
+            plt.bar(
+                xpos,
+                mean,
+                bar_width,
+                label=label if group_idx == 0 else None,
+                color=color,
+                yerr=yerr,
+                capsize=5,
+            )

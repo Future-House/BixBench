@@ -12,9 +12,13 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
-from . import prompts
+from bixbench import prompts
 
 litellm.set_verbose = False
+
+
+def flatten_list(nested_list):
+    return [item for sublist in nested_list for item in sublist]
 
 
 async def send_message_to_llm(
@@ -483,3 +487,37 @@ def wilson_ci(p: float, n: int, z: float = 1.96) -> tuple[float, float]:
     center = (p + z**2 / (2 * n)) / denominator
     spread = z * np.sqrt(p * (1 - p) / n + z**2 / (4 * n**2)) / denominator
     return center - spread, center + spread
+
+
+def calculate_results(
+    df: pd.DataFrame, total_questions: int | None = None
+) -> dict[str, dict[str, Any]]:
+    """
+    Calculate means and confidence intervals for each model and format.
+
+    Args:
+        df (pd.DataFrame): DataFrame containing model evaluation results
+        total_questions (int | None): Total number of questions to normalize
+        by as sum runs may have failed and so were not included in the eval_df
+
+    Returns:
+        list: List of dictionaries containing statistical results for each model and format
+    """
+    results = {}
+    for run in df["run_name"].unique():
+        mask = df["run_name"].str.contains(run)
+        scores = df[mask]["correct"]
+        if len(scores) > 0:
+            mean = (
+                scores.sum() / total_questions
+                if total_questions is not None
+                else scores.mean()
+            )
+            n = total_questions if total_questions is not None else len(scores)
+            ci_low, ci_high = wilson_ci(mean, n)
+            results[run] = {
+                "mean": mean,
+                "ci_low": ci_low,
+                "ci_high": ci_high,
+            }
+    return results
