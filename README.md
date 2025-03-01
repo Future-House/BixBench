@@ -30,11 +30,11 @@ This repository enables three separate functions:
 ## Links
 
 - [Installation](#installation)
-- [Quick start](#quick-start)
-- [Results](#latest-results)
-- [Use your own agent](#use-your-own-agent)
-- [Baselines](#baselines)
-- [Ackowledge](#acknowledge)
+- [Agentic Evaluations](#agentic-evaluations)
+- [Using Your Own Agent](#using-your-own-agent)
+- [Zero-shot Evaluations](#zero-shot-evaluations)
+- [Replicating the BixBench Paper Results](#replicating-the-bixbench-paper-results)
+- [Acknowledgments](#acknowledgments)
 
 ## Installation
 
@@ -145,7 +145,12 @@ You can then run the postprocessing script to generate the evaluation dataframe 
 python bixbench/postprocessing.py --data_path bixbench_results/raw_trajectory_data.csv --checkpointing
 ```
 
-## Acknowledge
+You will see the following figures from the paper:
+![Majority Vote Accuracy](bixbench_results/majority_vote_accuracy_refusal_option_comparison.png)
+
+![Performance Comparison](bixbench_results/bixbench_results_comparison.png)
+
+## Acknowledgments
 
 BixBench is the product of a collaboration between [FutureHouse](https://futurehouse.org) and [ScienceMachine](https://www.sciencemachine.ai/).
 
