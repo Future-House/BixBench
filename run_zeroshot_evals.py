@@ -38,7 +38,7 @@ else:
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="BixBench Evaluation Tool",
+        description="BixBench Zero-ShotEvaluation Tool",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
 

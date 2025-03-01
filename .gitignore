@@ -11,6 +11,8 @@ ipython_config.py
 *.pyc
 __pycache__/
 
+# Results
+bixbench_results/
 
 .DS_Store
 # pyenv

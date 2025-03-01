@@ -4,6 +4,7 @@ import json
 import logging
 import shutil
 from pathlib import Path
+from typing import Any
 
 import datasets
 import yaml
@@ -12,23 +13,38 @@ from fhda import prompts
 from fhda.data_analysis_env import DataAnalysisEnv
 from fhda.utils import NBLanguage, collect_notebook_stats, load_mcq
 from huggingface_hub import hf_hub_download
-from ldp.agent import AgentConfig
+from ldp.agent import Agent, AgentConfig
 from ldp.alg.rollout import RolloutManager
-from ldp.data_structures import Trajectory
+from ldp.data_structures import Trajectory, Transition
 
 logger = logging.getLogger(__name__)
 
 
-class TraceGenerator:
-    def __init__(self):
+class TrajectoryGenerator:
+    """
+    Generator for creating and storing agent trajectories on data analysis tasks.
+
+    This class handles the full pipeline of loading benchmark capsules, setting up
+    environments, running agents through these environments, and storing the resulting
+    trajectories.
+    """
+
+    def __init__(self) -> None:
+        """Initialize the TrajectoryGenerator with config and create necessary directories."""
         self.config = self.load_config()
         # Create directories
         self.config["local_workspace_dir"].mkdir(parents=True, exist_ok=True)
-        self.config["local_traces_dir"].mkdir(parents=True, exist_ok=True)
+        self.config["local_trajectories_dir"].mkdir(parents=True, exist_ok=True)
         self.config["local_data_folder"].mkdir(parents=True, exist_ok=True)
 
     # TODO: Move to utils and use a yaml loader package
-    def load_config(self):
+    def load_config(self) -> dict[str, Any]:
+        """
+        Load and process configuration from the config.yaml file.
+
+        Returns:
+            Dict[str, Any]: Processed configuration dictionary
+        """
         config_path = Path(__file__).parent / "config.yaml"
         with open(config_path, encoding="utf-8") as f:
             config = yaml.safe_load(f)
@@ -60,12 +76,22 @@ class TraceGenerator:
             "base_prompt": base_prompt,
             "eval_mode": EvalAnswerMode[config["capsule"]["eval_mode"]],
             "local_workspace_dir": Path(config["paths"]["workspace_dir"]).absolute(),
-            "local_traces_dir": Path(config["paths"]["traces_dir"]).absolute(),
+            "local_trajectories_dir": Path(
+                config["paths"]["trajectories_dir"]
+            ).absolute(),
             "local_data_folder": Path(config["paths"]["data_folder"]).absolute(),
             "hf_repo_id": config["paths"]["hf_repo_id"],
+            "rollout_type": config["rollout"].get("type", "vanilla"),
+            "avoid_images": config["capsule"]["avoid_images"],
         }
 
-    async def process_capsule(self, capsule):
+    async def process_capsule(self, capsule: dict[str, Any]) -> None:
+        """
+        Process a single benchmark capsule by downloading and extracting necessary files.
+
+        Args:
+            capsule: Dictionary containing capsule information
+        """
         zip_filename = capsule["data_folder"]
         extract_dir = self.config["local_data_folder"] / zip_filename.replace(
             ".zip", ""
@@ -92,7 +118,13 @@ class TraceGenerator:
         await asyncio.to_thread(self._extract_and_process_files, zip_path, extract_dir)
         capsule["local_data_folder"] = extract_dir
 
-    async def load_bixbench(self) -> datasets.Dataset:
+    async def load_bixbench(self) -> list[dict[str, Any]]:
+        """
+        Load BixBench dataset and process all capsules.
+
+        Returns:
+            List[Dict[str, Any]]: List of processed benchmark capsules
+        """
         bixbench = datasets.load_dataset(
             self.config["hf_repo_id"], split="train"
         ).to_list()
@@ -103,8 +135,14 @@ class TraceGenerator:
 
         return bixbench
 
-    def _extract_and_process_files(self, zip_path: Path, extract_dir: Path):
-        """Helper method to extract and process zip files."""
+    def _extract_and_process_files(self, zip_path: Path, extract_dir: Path) -> None:
+        """
+        Extract and process zip files for a capsule.
+
+        Args:
+            zip_path: Path to the zip file
+            extract_dir: Directory to extract files to
+        """
         # Extract the zip file
         shutil.unpack_archive(zip_path, extract_dir)
 
@@ -140,6 +178,13 @@ class TraceGenerator:
     async def store_trajectory(
         self, trajectory: Trajectory, env: DataAnalysisEnv
     ) -> None:
+        """
+        Store trajectory and environment information to disk.
+
+        Args:
+            trajectory: The trajectory to store
+            env: The environment that generated the trajectory
+        """
         extract = {
             "problem_id": env.problem_id,
             "agent_answer": env.state.answer,
@@ -160,7 +205,7 @@ class TraceGenerator:
         }
 
         # Download run metadata
-        with (self.config["local_traces_dir"] / f"{env.problem_id}.json").open(
+        with (self.config["local_trajectories_dir"] / f"{env.problem_id}.json").open(
             "w"
         ) as f:
             json.dump(
@@ -170,10 +215,19 @@ class TraceGenerator:
             )
         # Download run trajectory
         await trajectory.to_jsonl(
-            self.config["local_traces_dir"] / f"{env.problem_id}.jsonl"
+            self.config["local_trajectories_dir"] / f"{env.problem_id}.jsonl"
         )
 
-    def environment_factory(self, capsule: dict) -> DataAnalysisEnv:
+    def environment_factory(self, capsule: dict[str, Any]) -> DataAnalysisEnv:
+        """
+        Create a DataAnalysisEnv instance from a capsule.
+
+        Args:
+            capsule: Dictionary containing capsule information
+
+        Returns:
+            DataAnalysisEnv: Initialized environment
+        """
         raw_questions = ast.literal_eval(capsule["questions"])
         processed_questions = [
             load_mcq(i, open_question=True, question_id=i["id"]) for i in raw_questions
@@ -194,7 +248,7 @@ class TraceGenerator:
             if item.is_file():
                 shutil.copy2(item, work_dir)
             elif item.is_dir():
-                shutil.copytree(item, work_dir / item.name)
+                shutil.copytree(item, work_dir / item.name, dirs_exist_ok=True)
         nb_path = work_dir / self.config["notebook_name"]
 
         # Add some extra metadata from config
@@ -217,27 +271,108 @@ class TraceGenerator:
 
         return DataAnalysisEnv(**env_args)
 
-    async def run(self) -> None:
-        bixbench = await self.load_bixbench()
-        # Construct agent and rollout manager
+    async def custom_rollout(
+        self, agent: Agent, environment: DataAnalysisEnv
+    ) -> Trajectory:
+        """
+        Custom implementation of rollout logic.
+
+        Args:
+            agent: The agent to use for rollout
+            environment: The environment to run the agent in
+
+        Returns:
+            Trajectory: The generated trajectory
+
+        Raises:
+            NotImplementedError: This method needs to be implemented by subclasses
+        """
+        raise NotImplementedError("Custom rollout not implemented")
+
+    async def vanilla_rollout(
+        self, agent: Agent, environment: DataAnalysisEnv
+    ) -> tuple[Trajectory, DataAnalysisEnv]:
+        """
+        Standard implementation of rollout logic.
+
+        Args:
+            agent: The agent to use for rollout
+            environment: The environment to run the agent in
+
+        Returns:
+            Tuple[Trajectory, DataAnalysisEnv]: The generated trajectory and updated environment
+        """
+        obs, tools = await environment.reset()
+        agent_state = await agent.init_state(tools)
+        trajectory = Trajectory()
+
+        for timestep in range(self.config["max_rollout_steps"]):
+            action, next_agent_state, value = await agent.get_asv(agent_state, obs)
+            next_obs, reward, done, trunc = await environment.step(action.value)
+            trajectory.steps.append(
+                Transition(
+                    timestep=timestep,
+                    agent_state=agent_state,
+                    next_agent_state=next_agent_state,
+                    observation=obs,
+                    next_observation=next_obs,
+                    action=action,
+                    reward=reward,
+                    done=done,
+                    truncated=trunc,
+                    value=value,
+                )
+            )
+            if done or trunc:
+                break
+
+            agent_state = next_agent_state
+            obs = next_obs
+
+        return trajectory, environment
+
+    async def batch_rollout(
+        self, list_of_environments: list[DataAnalysisEnv]
+    ) -> list[Trajectory | tuple[Trajectory, DataAnalysisEnv]]:
+        """
+        Run rollouts for a batch of environments.
+
+        Args:
+            list_of_environments: List of environments to run rollouts in
+
+        Returns:
+            List[Union[Trajectory, Tuple[Trajectory, DataAnalysisEnv]]]: List of trajectories or
+                trajectory-environment pairs depending on rollout type
+        """
+        if self.config["rollout_type"] == "aviary":
+            agent = self.config["agent_config"].construct_agent()
+            rollout = RolloutManager(agent=agent)
+            return await rollout.sample_trajectories(
+                environments=list_of_environments,
+                max_steps=self.config["max_rollout_steps"],
+            )
+
         agent = self.config["agent_config"].construct_agent()
-        rollout = RolloutManager(agent=agent)
+        rollout_manager = getattr(self, f"{self.config['rollout_type']}_rollout")
+
+        return await asyncio.gather(*[
+            rollout_manager(agent, environment) for environment in list_of_environments
+        ])
+
+    async def run(self) -> None:
+        """Run the full trajectory generation pipeline."""
+        bixbench = await self.load_bixbench()
 
         # Process environments in batches
         for i in range(0, len(bixbench), self.config["batch_size"]):
             batch = bixbench[i : i + self.config["batch_size"]]
             environments = [self.environment_factory(capsule) for capsule in batch]
-
-            # TODO: Create simple rollout manager that does not use LDP
-            trajectories = await rollout.sample_trajectories(
-                environments=environments, max_steps=self.config["max_rollout_steps"]
-            )
-
+            results = await self.batch_rollout(environments)
             # Store trajectories for each environment
-            for trajectory, env in zip(trajectories, environments, strict=True):
+            for trajectory, env in results:
                 await self.store_trajectory(trajectory, env)
 
 
 if __name__ == "__main__":
-    generator = TraceGenerator()
+    generator = TrajectoryGenerator()
     asyncio.run(generator.run())

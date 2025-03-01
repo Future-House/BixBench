@@ -17,7 +17,15 @@ from bixbench import prompts
 litellm.set_verbose = False
 
 
-def flatten_list(nested_list):
+def flatten_list(nested_list: list[list[Any]]) -> list[Any]:
+    """Flatten a nested list of items into a single list.
+
+    Args:
+        nested_list: A list containing sublists to flatten
+
+    Returns:
+        A flattened list containing all items from sublists
+    """
     return [item for sublist in nested_list for item in sublist]
 
 
@@ -96,7 +104,7 @@ async def run_eval_loop(
     return eval_df
 
 
-async def process_single(prompt: str, model: str, sem: Semaphore) -> dict[str, Any]:
+async def process_single(prompt: str, model: str, sem: Semaphore) -> Optional[str]:
     """Process a single prompt with a language model with retry logic.
 
     Makes up to 5 attempts to get a response from the model.
@@ -107,7 +115,7 @@ async def process_single(prompt: str, model: str, sem: Semaphore) -> dict[str, A
         sem: Semaphore for rate limiting requests
 
     Returns:
-        The model's response content or None if all attempts fail
+        The model's response content as string or None if all attempts fail
     """
     messages = [
         {"role": "user", "content": prompt},
@@ -129,7 +137,7 @@ async def process_single(prompt: str, model: str, sem: Semaphore) -> dict[str, A
 
 async def process_with_progress(
     prompt: str, model: str, sem: Semaphore, pbar: tqdm
-) -> dict[str, Any]:
+) -> Optional[str]:
     """Process a single prompt and update progress bar.
 
     Callback function that processes a prompt and ensures the progress bar
@@ -142,7 +150,7 @@ async def process_with_progress(
         pbar: tqdm progress bar to update
 
     Returns:
-        The result from processing the prompt
+        The result from processing the prompt or None if processing fails
     """
     try:
         return await process_single(prompt, model, sem)
@@ -151,8 +159,8 @@ async def process_with_progress(
 
 
 async def process_batch(
-    prompts: list[dict[str, Any]], model: str, max_concurrent: int = 5
-) -> list[dict[str, Any]]:
+    prompts: list[str], model: str, max_concurrent: int = 5
+) -> list[Optional[str]]:
     """Process a batch of prompts concurrently with rate limiting and progress tracking.
 
     Args:
@@ -161,7 +169,7 @@ async def process_batch(
         max_concurrent: Maximum number of concurrent requests allowed
 
     Returns:
-        List of results from processing each prompt
+        List of results from processing each prompt (strings or None values)
     """
     sem = Semaphore(max_concurrent)
 
@@ -223,10 +231,15 @@ def load_answer(answer: str | dict[str, Any]) -> dict[str, Any]:
 
 
 def create_eval_df(data: list[dict[str, Any]]) -> pd.DataFrame:
-    """
-    Creates a dataframe for evaluation with one row per question.
+    """Creates a dataframe for evaluation with one row per question.
 
     Uses vectorized operations for better performance.
+
+    Args:
+        data: List of dictionaries containing problem data
+
+    Returns:
+        DataFrame with one row per question, including formatted questions and prompts
     """
     # First, apply load_answer to all relevant columns at once
     evaluation_data = data.copy()
@@ -293,7 +306,9 @@ def create_eval_df(data: list[dict[str, Any]]) -> pd.DataFrame:
     return result
 
 
-def questions_to_mcq(question, options: list[dict[str, Any]], refusal_option=True):
+def questions_to_mcq(
+    question: str, options: list[str | dict[str, Any]], refusal_option: bool = True
+) -> tuple[str, str, Optional[str]]:
     """Format a question and options into an MCQ format.
 
     Creates a formatted multiple-choice question with lettered options,
@@ -335,7 +350,7 @@ def questions_to_mcq(question, options: list[dict[str, Any]], refusal_option=Tru
     return formatted_question, correct_letter, refusal_letter
 
 
-def create_llm_message_content(row) -> list[dict[str, Any]]:
+def create_llm_message_content(row: pd.Series) -> list[dict[str, Any]]:
     """Create a message content structure for LLM API requests.
 
     Formats text and images from a dataframe row into the format expected
@@ -364,7 +379,7 @@ def create_llm_message_content(row) -> list[dict[str, Any]]:
     return content
 
 
-def create_prompt(row: pd.Series) -> str:
+def create_prompt(row: pd.Series) -> str | float:
     """Create an appropriate prompt based on the question format.
 
     Selects either open-ended or MCQ prompt template and formats it
@@ -482,7 +497,19 @@ def run_majority_voting(
 
 
 def wilson_ci(p: float, n: int, z: float = 1.96) -> tuple[float, float]:
-    """Calculate Wilson confidence interval for a proportion."""
+    """Calculate Wilson confidence interval for a proportion.
+
+    The Wilson score interval is used to calculate confidence intervals for
+    binomial proportions, especially when sample sizes are small.
+
+    Args:
+        p: Observed proportion
+        n: Sample size
+        z: Z-score for desired confidence level (default 1.96 for 95% CI)
+
+    Returns:
+        Tuple of (lower bound, upper bound) of the confidence interval
+    """
     denominator = 1 + z**2 / n
     center = (p + z**2 / (2 * n)) / denominator
     spread = z * np.sqrt(p * (1 - p) / n + z**2 / (4 * n**2)) / denominator
@@ -490,18 +517,18 @@ def wilson_ci(p: float, n: int, z: float = 1.96) -> tuple[float, float]:
 
 
 def calculate_results(
-    df: pd.DataFrame, total_questions: int | None = None
-) -> dict[str, dict[str, Any]]:
+    df: pd.DataFrame, total_questions: Optional[int] = None
+) -> dict[str, dict[str, float]]:
     """
     Calculate means and confidence intervals for each model and format.
 
     Args:
-        df (pd.DataFrame): DataFrame containing model evaluation results
-        total_questions (int | None): Total number of questions to normalize
-        by as sum runs may have failed and so were not included in the eval_df
+        df: DataFrame containing model evaluation results
+        total_questions: Total number of questions to normalize
+            by as some runs may have failed and were not included in the eval_df
 
     Returns:
-        list: List of dictionaries containing statistical results for each model and format
+        Dictionary mapping run names to statistics including mean score and confidence intervals
     """
     results = {}
     for run in df["run_name"].unique():

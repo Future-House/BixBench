@@ -85,6 +85,7 @@ This will:
 2. Preprocess each capsule in the dataset
 3. Generate and store trajectories including the final agent answer and Jupyter notebook in the directory specified in `config.yaml`
 
+Trajectories are saved in the `bixbench_results/` directory as json files.
 
 ### Customization
 
@@ -116,7 +117,7 @@ This script will:
 4. Compare model performance across different run groups defined in `config.py`
 5. Generate visualizations
 
-Trajectories are saved in the `bixbench_results/` directory as json files.
+The script will save the evaluation dataframe as a CSV file in the `bixbench_results/` directory as well as the plots.
 
 ## Zero-shot Evaluations & Grading
 

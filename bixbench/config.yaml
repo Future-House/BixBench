@@ -7,6 +7,7 @@ agent:
 rollout:
   max_steps: 25
   batch_size: 16
+  rollout_type: "aviary"
 
 notebook:
   name: "notebook.ipynb"
@@ -25,7 +26,7 @@ capsule:
 
 paths:
   workspace_dir: "data/workspace"
-  traces_dir: "data/traces"
+  trajectories_dir: "data/trajectories"
   data_folder: "data/capsules"
   hf_repo_id: "futurehouse/bixbench-internal"
 

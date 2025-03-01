@@ -248,7 +248,8 @@ ignore = [
   "TC003",
   "TD002", # Don't care for TODO author
   "TD003", # Don't care for TODO links
-  "TRY003" # Overly pedantic
+  "TRY003", # Overly pedantic
+  "DOC202", # Overly pedantic
 ]
 preview = true
 select = ["ALL"]

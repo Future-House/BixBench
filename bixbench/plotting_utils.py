@@ -1,6 +1,8 @@
 # DISCLAIMER: This file is highly tailored to the BixBench paper requirements.
 # It is not designed to be used as a general function for plotting model performance.
 
+from typing import Optional
+
 import config as cfg
 import matplotlib.pyplot as plt
 import numpy as np
@@ -16,11 +18,23 @@ np.random.default_rng(42)
 
 
 def majority_vote_accuracy_by_k(
-    run_results: dict,
-    name="",
-    random_baselines: list[float] | None = None,
-    random_baselines_labels: list[str] | None = None,
+    run_results: dict[str, tuple[list[int], list[float], list[float]]],
+    name: str = "",
+    random_baselines: Optional[list[float]] = None,
+    random_baselines_labels: Optional[list[str]] = None,
 ) -> None:
+    """
+    Plot the accuracy of majority voting as a function of the number of votes (k).
+
+    Args:
+        run_results: Dictionary mapping run names to tuples of (k_values, means, stds)
+        name: Name suffix for the saved plot file
+        random_baselines: List of accuracy values for random baseline models
+        random_baselines_labels: Labels for the random baseline models
+
+    Returns:
+        None: Saves the plot to disk and displays it
+    """
     if random_baselines_labels is None:
         random_baselines_labels = [
             "With Refusal Option Random Guess",
@@ -70,8 +84,24 @@ def majority_vote_accuracy_by_k(
     plt.show()
 
 
-def plot_model_comparison(results, baselines, run_groups, color_groups):
-    """Create a bar chart comparing model performance across different formats."""
+def plot_model_comparison(
+    results: dict[str, dict[str, float]],
+    baselines: dict[str, float],
+    run_groups: list[list[str]],
+    color_groups: list[str],
+) -> None:
+    """
+    Create a bar chart comparing model performance across different formats.
+
+    Args:
+        results: Dictionary mapping run names to performance metrics (mean, ci_low, ci_high)
+        baselines: Dictionary mapping run names to baseline performance values
+        run_groups: List of lists, where each inner list contains run names in a group
+        color_groups: List of group names for color mapping
+
+    Returns:
+        None: Saves the plot to disk and displays it
+    """
     # Setup
     plt.figure(figsize=(10, 5))
     x_axis = np.arange(len(run_groups))
@@ -101,8 +131,24 @@ def plot_model_comparison(results, baselines, run_groups, color_groups):
     plt.show()
 
 
-def draw_baselines(x_axis, baselines, run_groups, bar_width):
-    """Draw baseline lines on the plot."""
+def draw_baselines(
+    x_axis: np.ndarray,
+    baselines: dict[str, float],
+    run_groups: list[list[str]],
+    bar_width: float,
+) -> None:
+    """
+    Draw baseline lines on the plot for performance comparison.
+
+    Args:
+        x_axis: Array of x-coordinates for the group positions
+        baselines: Dictionary mapping run names to baseline performance values
+        run_groups: List of lists, where each inner list contains run names in a group
+        bar_width: Width of the bars in the plot
+
+    Returns:
+        None
+    """
     baseline_color = "grey"
     random_color = "grey"
     line_width = 2
@@ -145,8 +191,26 @@ def draw_baselines(x_axis, baselines, run_groups, bar_width):
         random_label_used = True
 
 
-def draw_model_bars(x_axis, results, run_groups, bar_width, color_map):
-    """Draw performance bars for each model."""
+def draw_model_bars(
+    x_axis: np.ndarray,
+    results: dict[str, dict[str, float]],
+    run_groups: list[list[str]],
+    bar_width: float,
+    color_map: dict[str, str],
+) -> None:
+    """
+    Draw performance bars for each model on the plot.
+
+    Args:
+        x_axis: Array of x-coordinates for the group positions
+        results: Dictionary mapping run names to performance metrics (mean, ci_low, ci_high)
+        run_groups: List of lists, where each inner list contains run names in a group
+        bar_width: Width of the bars in the plot
+        color_map: Dictionary mapping group names to colors
+
+    Returns:
+        None
+    """
     for group_idx, group in enumerate(run_groups):
         for j, run_name in enumerate(group):
             mean = results[run_name]["mean"]

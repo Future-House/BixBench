@@ -4,6 +4,7 @@ import asyncio
 import json
 import operator
 import os
+from typing import Any
 
 import config as cfg
 import nbformat
@@ -66,7 +67,7 @@ async def process_trajectories(
         checkpointing (bool): Whether to save intermediate results to CSV files
 
     Returns:
-        pd.DataFrame: Processed evaluation dataframe
+        pd.DataFrame: Processed evaluation dataframe with graded responses
     """
     eval_df = utils.create_eval_df(df)
     eval_df = await utils.run_eval_loop(eval_df)
@@ -89,23 +90,30 @@ async def process_trajectories(
     return eval_df
 
 
-async def run_majority_vote(eval_df: pd.DataFrame, k_value: int = 10) -> None:
+async def run_majority_vote(
+    eval_df: pd.DataFrame, k_value: int = 10
+) -> dict[str, tuple[list[int], list[float], list[float]]]:
     """
     Implement majority voting evaluation across different model configurations.
 
-    DISCLAIMER: This function is highly tailored to the BixBench paper requirements.
-    It is not designed to be used as a general function for comparing model performance.
+    This function analyzes evaluation data, performs majority voting analysis for
+    multiple choice questions, and produces visualizations comparing different model
+    configurations with various features.
 
-    This function reads evaluation data, performs majority voting analysis for
-    multiple choice questions, and produces visualization comparing different model
-    configurations with and without specific features.
+    Args:
+        eval_df (pd.DataFrame): DataFrame containing evaluation results
+        k_value (int): Maximum number of samples to consider for majority voting
+
+    Returns:
+        Dict[str, Tuple[List[int], List[float], List[float]]]: Dictionary mapping run names to
+            tuples of (k_values, mean accuracies, standard deviations)
     """
     # Only run majority vote on mcq questions
     maj_vote_df = eval_df[eval_df.question_format == "mcq"].copy()
 
     if maj_vote_df.empty:
         print("No MCQ questions found, skipping majority vote")
-        return
+        return {}
 
     # Store results for all runs
     run_results = {}
@@ -136,16 +144,21 @@ async def run_majority_vote(eval_df: pd.DataFrame, k_value: int = 10) -> None:
             random_baselines_labels=random_baselines_labels,
         )
 
+    return run_results
 
-async def compare_runs(eval_df: pd.DataFrame) -> None:
+
+async def compare_runs(eval_df: pd.DataFrame) -> dict[str, dict[str, Any]]:
     """
     Compare performance between different model architectures.
 
-    DISCLAIMER: This function is highly tailored to the BixBench paper requirements.
-    It is not designed to be used as a general function for comparing model performance.
-
     This function analyzes and visualizes the performance differences between
-    GPT-4o and Claude models across different question formats.
+    various model configurations across different question formats.
+
+    Args:
+        eval_df (pd.DataFrame): DataFrame containing evaluation results
+
+    Returns:
+        Dict[str, Dict[str, Any]]: Performance results for different model configurations
     """
     # Filter eval_df to only include run_names configured in config.py
     eval_df = eval_df[eval_df["run_name"].isin(utils.flatten_list(cfg.RUN_NAME_GROUPS))]
@@ -158,6 +171,8 @@ async def compare_runs(eval_df: pd.DataFrame) -> None:
         results, cfg.BASELINES, cfg.RUN_NAME_GROUPS, cfg.COLOR_GROUPS
     )
 
+    return results
+
 
 if __name__ == "__main__":
     # Parse command line arguments
@@ -168,27 +183,39 @@ if __name__ == "__main__":
         default="bixbench_results/raw_trajectory_data.csv",
         help="Path to the raw trajectory data CSV file",
     )
+
+    parser.add_argument(
+        "--majority_vote",
+        action="store_true",
+        default=False,
+        help="Whether to run majority vote analysis",
+    )
+
     parser.add_argument(
         "--checkpointing",
         action="store_true",
         default=True,
         help="Whether to save and load intermediate results",
     )
+
     args = parser.parse_args()
-
-    # # Load raw trajectory data
-    # os.makedirs("bixbench_results", exist_ok=True)
-    # data = load_raw_data(args.data_path)
-
-    # # Process trajectories and save eval df
-    # eval_df = asyncio.run(process_trajectories(data, checkpointing=args.checkpointing))
 
     if args.checkpointing:
         eval_df = pd.read_csv("bixbench_results/eval_df.csv")
         eval_df["correct"] = eval_df["correct"].astype(bool)
+    else:
+        # Load raw trajectory data
+        os.makedirs("bixbench_results", exist_ok=True)
+        data = load_raw_data(args.data_path)
 
-    # Run majority vote
-    asyncio.run(run_majority_vote(eval_df, k_value=10))
+        # Process trajectories and save eval df
+        eval_df = asyncio.run(
+            process_trajectories(data, checkpointing=args.checkpointing)
+        )
+
+    if args.majority_vote:
+        # Run majority vote
+        asyncio.run(run_majority_vote(eval_df, k_value=10))
 
     # Compare runs
-    # asyncio.run(compare_runs(eval_df))
+    asyncio.run(compare_runs(eval_df))
