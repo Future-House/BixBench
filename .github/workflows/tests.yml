@@ -16,6 +16,11 @@ jobs:
       - name: Check out Git repository
         uses: actions/checkout@v4
 
+      - name: Set up authentication for private repositories
+        run: |
+          echo "GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}" >> $GITHUB_ENV
+          git config --global url."https://${GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/"
+      
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
@@ -44,6 +49,11 @@ jobs:
       - name: Check out Git repository
         uses: actions/checkout@v4
 
+      - name: Set up authentication for private repositories
+        run: |
+          echo "GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}" >> $GITHUB_ENV
+          git config --global url."https://${GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/"
+      
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:

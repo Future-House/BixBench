@@ -12,7 +12,7 @@ authors = [
 dependencies = [
   "aiodocker",
   "fhaviary[server] >= 0.18.0",
-  "fhda @ git+https://github.com/Future-House/data-analysis-crow@main",
+  "fhda @ git+https://${GITHUB_TOKEN}@github.com/Future-House/data-analysis-crow@main",
   "ldp",
   "pandas",
   "numpy",
