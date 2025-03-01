@@ -112,7 +112,6 @@ async def run_majority_vote(eval_df: pd.DataFrame, k_value: int = 10) -> None:
 
     for run_name in maj_vote_df.run_name.unique():
         grouped_df = maj_vote_df[maj_vote_df.run_name == run_name].copy()
-        grouped_df["llm_answer"] = grouped_df["llm_answer"].fillna("X")
         grouped_df = grouped_df.groupby("uuid").agg(list)
         grouped_df["correct_letter"] = grouped_df["correct_letter"].apply(
             operator.itemgetter(0)
@@ -123,38 +122,19 @@ async def run_majority_vote(eval_df: pd.DataFrame, k_value: int = 10) -> None:
         )
         run_results[run_name] = (k_values, means, stds)
 
-    r1 = {
-        "claude_mcq_image_with_refusal": "Claude with vision",
-        "claude_mcq_no_image_with_refusal": "Claude without vision",
-        "4o_mcq_image_with_refusal": "GPT-4o with vision",
-        "4o_mcq_no_image_with_refusal": "GPT-4o without vision",
-    }
+    for group_name, group_runs in cfg.MAJORITY_VOTE_GROUPS.items():
+        random_baselines = [0.2]
+        random_baselines_labels = ["Random Guess with Refusal Option"]
+        if any("without_refusal" in run_name for run_name in group_runs):
+            random_baselines.append(0.25)
+            random_baselines_labels.append("Random Guess without Refusal Option")
 
-    r2 = {
-        "claude_mcq_image_without_refusal": "Claude without Refusal Option",
-        "4o_mcq_image_without_refusal": "GPT-4o without Refusal Option",
-        "claude_mcq_image_with_refusal": "Claude with Refusal Option",
-        "4o_mcq_image_with_refusal": "GPT-4o with Refusal Option",
-    }
-
-    # Plot with vision and without vision
-    plotting_utils.majority_vote_accuracy_by_k(
-        {value: run_results[key] for key, value in r1.items()},
-        name="image_comparison",
-        random_baselines=[0.2],
-        random_baselines_labels=["Random Guess"],
-    )
-
-    # Plot with and without refusal option
-    plotting_utils.majority_vote_accuracy_by_k(
-        {value: run_results[key] for key, value in r2.items()},
-        name="refusal_option_comparison",
-        random_baselines=[0.2, 0.25],
-        random_baselines_labels=[
-            "With Refusal Option Random Guess",
-            "Without Refusal Option Random Guess",
-        ],
-    )
+        plotting_utils.majority_vote_accuracy_by_k(
+            {run_name: run_results[run_name] for run_name in group_runs},
+            name=group_name,
+            random_baselines=random_baselines,
+            random_baselines_labels=random_baselines_labels,
+        )
 
 
 async def compare_runs(eval_df: pd.DataFrame) -> None:
@@ -208,7 +188,7 @@ if __name__ == "__main__":
         eval_df["correct"] = eval_df["correct"].astype(bool)
 
     # Run majority vote
-    # asyncio.run(run_majority_vote(eval_df, k_value=10))
+    asyncio.run(run_majority_vote(eval_df, k_value=10))
 
     # Compare runs
-    asyncio.run(compare_runs(eval_df))
+    # asyncio.run(compare_runs(eval_df))

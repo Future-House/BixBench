@@ -16,16 +16,7 @@ def _download_font():
 # Aim to have these colors be color-blind friendly, and avoid black/white
 # We need at least 8 colors for a good color cycle
 # SEE: https://davidmathlogic.com/colorblind/'s Tol theme or https://colorbrewer2.org/
-COLOR_CYCLE = (
-    "#0072B2",  # Blue
-    "#D55E00",  # Vermilion/Orange-red
-    "#009E73",  # Teal green
-    "#CC79A7",  # Pink
-    "#F0E442",  # Yellow
-    "#999999",  # Grey
-    "#56147C",  # Deep Purple
-    "#994F3D",  # Terracotta
-)
+COLOR_CYCLE = ["#1BBC9B", "#148F76", "#FF8C00", "#CC7000", "#80cedb", "#FFFFFF"]
 
 
 def set_fh_mpl_style(dark_mode: bool = False):

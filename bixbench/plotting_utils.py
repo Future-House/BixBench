@@ -4,11 +4,15 @@
 import config as cfg
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib import ticker
 from plot_style import set_fh_mpl_style
 
 from bixbench import postprocessing_utils as utils
 
 set_fh_mpl_style()
+
+# There is stochasticity in the majority vote accuracy plot, so we set a seed for reproducibility
+np.random.default_rng(42)
 
 
 def majority_vote_accuracy_by_k(
@@ -38,11 +42,18 @@ def majority_vote_accuracy_by_k(
             alpha=0.2,
         )
 
-    plt.xlabel("Number of Votes (k)")
-    plt.ylabel("Accuracy")
+    plt.xlabel("Number of Votes (k)", fontsize=18)
+    plt.ylabel("Accuracy", fontsize=18)
     plt.xlim(1, 9)
-    plt.title("Majority Voting Accuracy vs Number of Votes")
-    plt.xticks(k_values)
+    plt.ylim(0.1, 0.35)
+    plt.yticks(
+        np.arange(0.1, 0.36, 0.05),
+        [f"{x:.2f}" for x in np.arange(0.1, 0.36, 0.05)],
+        fontsize=18,
+    )
+    plt.title("Majority Voting Accuracy", fontsize=18)
+    plt.xticks(k_values, fontsize=18)
+    plt.gca().yaxis.set_major_formatter(ticker.FormatStrFormatter("%.2f"))
 
     for i, (baseline, label) in enumerate(
         zip(random_baselines, random_baselines_labels, strict=True)
@@ -53,7 +64,7 @@ def majority_vote_accuracy_by_k(
             linestyle=":",
             label=label,
         )
-    plt.legend()  # bbox_to_anchor=(1.05, 0), loc='lower left')
+    plt.legend(loc="upper left")
     plt.grid(alpha=0.3, visible=True)
     plt.savefig(f"{cfg.RESULTS_DIR}/majority_vote_accuracy_{name}.png")
     plt.show()
@@ -72,7 +83,6 @@ def plot_model_comparison(results, baselines, run_groups, color_groups):
 
     # Draw baseline lines
     draw_baselines(x_axis, baselines, run_groups, bar_width)
-
 
     # Customize plot appearance
     plt.ylabel("Accuracy", fontsize=18)

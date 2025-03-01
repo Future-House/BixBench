@@ -3,12 +3,30 @@ import json
 RESULTS_DIR = "bixbench_results"
 
 
-# PLOTTING CONFIG
+# POSTPROCESSING CONFIG
+K_VALUE = 10
+
 RUN_NAME_GROUPS = [
     ["4o_open_image", "claude_open_image"],
     ["4o_mcq_image_with_refusal", "claude_mcq_image_with_refusal"],
     ["4o_mcq_image_without_refusal", "claude_mcq_image_without_refusal"],
 ]
+
+MAJORITY_VOTE_GROUPS = {
+    "image_comparison": [
+        "claude_mcq_image_with_refusal",
+        "claude_mcq_no_image_with_refusal",
+        "4o_mcq_image_with_refusal",
+        "4o_mcq_no_image_with_refusal",
+    ],
+    "refusal_option_comparison": [
+        "claude_mcq_image_without_refusal",
+        "4o_mcq_image_without_refusal",
+        "claude_mcq_image_with_refusal",
+        "4o_mcq_image_with_refusal",
+    ],
+}
+
 GROUP_TITLES = ["Open-answer", "MCQ w/ refusal", "MCQ w/o refusal"]
 COLOR_GROUPS = ["4o", "claude"]
 
@@ -30,6 +48,5 @@ BASELINE_NAME_MAPPINGS = {
 BASELINES = {BASELINE_NAME_MAPPINGS[k]: v for k, v in BASELINES.items()}
 # This needs to be the same length as RUN_NAME_GROUPS
 RANDOM_BASELINES = [None, 0.2, 0.25]
-
 
 COLOR_CYCLE = ["#1BBC9B", "#FF8C00", "#FF69B4", "#ce8aed", "#80cedb", "#FFFFFF"]
