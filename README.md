@@ -97,9 +97,12 @@ Edit `bixbench/config.yaml` to modify:
 - File paths
 - Evaluation modes
 
-## Using Your Own Agent
+### Using Your Own Agent
 
 To use your own agent, use the `generate_trajectories.py` script to generate trajectories in the same format as the BixBench trajectories, then use the `postprocessing.py` script to evaluate your agent's performance.
+
+### Hosted trajectory generation
+Coming soon!
 
 ### Evaluate trajectories
 
@@ -154,4 +157,3 @@ You will see the following figures from the paper:
 ## Acknowledgments
 
 BixBench is the product of a collaboration between [FutureHouse](https://futurehouse.org) and [ScienceMachine](https://www.sciencemachine.ai/).
-

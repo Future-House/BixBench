@@ -1,12 +1,18 @@
+run_name: "bixbench-run-1"
+
 agent:
   agent_type: "ReActAgent"
   agent_kwargs:
     model: "gpt-4o"
     temperature: 1.0
-
+    llm_model:
+      parallel_tool_calls: False 
+      num_retries: 5
+      temperature: 1.0 
+    hide_old_env_states: True 
 rollout:
   max_steps: 25
-  batch_size: 16
+  batch_size: 2
   rollout_type: "aviary"
 
 notebook:
@@ -21,7 +27,7 @@ capsule:
     mcq: "MCQ_PROMPT_TEMPLATE"
     open: "OPEN_PROMPT_TEMPLATE"
     hypothesis: "HYPOTHESIS_PROMPT_TEMPLATE"
-  eval_mode: "LLM"
+  eval_mode: None # when set to None, the capsule will not evaluate the answer
   avoid_images: true
 
 paths:
