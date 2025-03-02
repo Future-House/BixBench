@@ -317,11 +317,12 @@ class TrajectoryGenerator:
                 environments=list_of_environments,
                 max_steps=self.config.rollout.max_steps,
             )
-            results = [
+            return [
                 (trajectory, environment)
-                for trajectory, environment in zip(trajectories, list_of_environments)
+                for trajectory, environment in zip(
+                    trajectories, list_of_environments, strict=True
+                )
             ]
-            return results
 
         agent = self.config.agent_config.construct_agent()
         rollout_manager = getattr(self, f"{self.config.rollout.rollout_type}_rollout")
@@ -337,7 +338,10 @@ class TrajectoryGenerator:
 
         # Process environments in batches
         for i in range(0, len(bixbench), self.config.rollout.batch_size):
-            logger.info(f"Processing batch {i // self.config.rollout.batch_size + 1} of {len(bixbench) // self.config.rollout.batch_size}")
+            logger.info(
+                f"Processing batch {i // self.config.rollout.batch_size + 1} "
+                f"of {len(bixbench) // self.config.rollout.batch_size}"
+            )
             batch = bixbench[i : i + self.config.rollout.batch_size]
             environments = [self.environment_factory(capsule) for capsule in batch]
             results = await self.batch_rollout(environments)
