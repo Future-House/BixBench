@@ -42,8 +42,8 @@ To set up the repository, first clone it and install the dependencies:
 
 ```bash
 # Clone the repository
-git clone https://github.com/Future-House/bixbench.git
-cd bixbench
+git clone https://github.com/Future-House/BixBench.git
+cd BixBench
 
 # Install dependencies
 pip install -e .  # or `uv sync` if you are using uv
