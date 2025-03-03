@@ -45,7 +45,6 @@ def majority_vote_accuracy_by_k(
     plt.figure(figsize=(15, 6))
 
     for run_name, (k_values, means, stds) in run_results.items():
-        print(k_values, means, stds)
         if k_values is None:
             continue
         plt.plot(k_values, means, "o-", label=run_name)
