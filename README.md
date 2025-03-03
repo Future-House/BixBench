@@ -19,7 +19,7 @@ This benchmark tests AI agents' ability to:
 BixBench presents AI agents with open-ended or multiple-choice tasks, requiring them to navigate datasets, execute code (Python, R, Bash), generate scientific hypotheses, and validate them.
 The dataset contains 296 questions derived from 53 real-world, published Jupyter notebooks and related data (capsules).
 
-You can find the BixBench dataset in [Hugging Face](https://huggingface.co/datasets/futurehouse/BixBench), the paper [here](), and the blog post [here](https://futurehouse.org/blog/bixbench/).
+You can find the BixBench dataset in [Hugging Face](https://huggingface.co/datasets/futurehouse/BixBench), read details in the paper [here](), and read our the blog post announcement [here](https://futurehouse.org/blog/bixbench/).
 
 This repository enables three separate functions:
 
