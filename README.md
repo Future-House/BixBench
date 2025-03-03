@@ -38,20 +38,34 @@ This repository enables three separate functions:
 
 ## Installation
 
+To set up the repository, first clone it and install the dependencies:
+
 ```bash
 # Clone the repository
 git clone https://github.com/Future-House/bixbench.git
 cd bixbench
 
 # Install dependencies
-pip install -e .
+pip install -e .  # or `uv sync` if you are using uv
+```
 
+Next, you will need to be able to access the BixBench dataset. To do this, you will have to authenticate with Hugging Face:
+
+```bash
 # Authenticate with Hugging Face
 huggingface-cli login
+```
 
-# Pull the docker for agentic evaluations
+See [here](https://huggingface.co/docs/huggingface_hub/en/guides/cli) for how to get started with the Hugging Face CLI and [here](https://huggingface.co/docs/huggingface_hub/en/guides/security-tokens) for more information on how to create a token.
+
+Finally, the agent executes its data analysis code in a containerized environment. So to run it, you will need to pull the docker image:
+
+```bash
+# Pull the docker image
 docker pull futurehouse/bixbench:aviary-notebook-env
 ```
+
+See [here](https://www.docker.com/get-started/) for instructions on how to set up Docker.
 
 ## Prerequisites
 
