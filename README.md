@@ -1,5 +1,5 @@
 <p align="center">
-    <a href="https://arxiv.org/abs/">
+    <a href="https://arxiv.org/abs/2503.00096">
     <img alt="Paper" src="https://img.shields.io/badge/arXiv-arXiv:2409.11363-b31b1b.svg">
     <a href = "https://github.com/Future-House/BixBench">
     <img alt="GitHub" src="https://img.shields.io/badge/GitHub-Repository-181717.svg">
@@ -19,7 +19,7 @@ This benchmark tests AI agents' ability to:
 BixBench presents AI agents with open-ended or multiple-choice tasks, requiring them to navigate datasets, execute code (Python, R, Bash), generate scientific hypotheses, and validate them.
 The dataset contains 296 questions derived from 53 real-world, published Jupyter notebooks and related data (capsules).
 
-You can find the BixBench dataset in [Hugging Face](https://huggingface.co/datasets/futurehouse/BixBench), read details in the paper [here](), and read our the blog post announcement [here](https://futurehouse.org/blog/bixbench/).
+You can find the BixBench dataset in [Hugging Face](https://huggingface.co/datasets/futurehouse/BixBench), read details in the paper [here](https://arxiv.org/abs/2503.00096), and read our the blog post announcement [here](https://www.futurehouse.org/research-announcements/bixbench).
 
 This repository enables three separate functions:
 
@@ -87,43 +87,44 @@ BixBench evaluates agents' ability to create complex Jupyter notebooks for real-
 
 ### Generate Trajectories
 
-BixBench evaluates agents' ability to create complex Jupyter notebooks for real-world bioinformatics research questions. To generate these trajectories, it's as simple as configuring the `config.yaml` file and running the following command:
+BixBench evaluates agents' ability to create complex Jupyter notebooks for real-world bioinformatics research questions. To generate these trajectories, it's as simple as configuring a YAML file and running the following command:
 
 ```bash
-python bixbench/generate_trajectories.py
+python bixbench/generate_trajectories.py --config_file bixbench/run_configuration/generate_trajectories.yaml
 ```
 
 This will:
 
 1. Download the BixBench dataset from Hugging Face (only needed once)
 2. Preprocess each capsule in the dataset
-3. Generate and store trajectories including the final agent answer and Jupyter notebook in the directory specified in `config.yaml`
+3. Generate and store trajectories including the final agent answer and Jupyter notebook in the directory specified in the YAML file
 
 Trajectories are saved in the `bixbench_results/` directory as json files.
 
 ### Customization
 
-Edit `bixbench/config.yaml` to modify:
+Edit or create a new YAML file to modify:
 
 - Model configurations
 - System prompts
 - Batch sizes
 - File paths
 - Evaluation modes
+- Rollout configuration
 
 ### Using Your Own Agent
 
-To use your own agent, use the `generate_trajectories.py` script to generate trajectories in the same format as the BixBench trajectories, then use the `postprocessing.py` script to evaluate your agent's performance.
+To use your own agent, use the `generate_trajectories.py` script by editing the [`custom_rollout`][(](https://github.com/Future-House/BixBench/blob/6c28217959d5d7dd6f48c59894534fced7c6c040/bixbench/generate_trajectories.py#L239)) function to generate trajectories in the same format as the BixBench trajectories, then use the `postprocessing.py` script to evaluate your agent's performance.
 
 ### Hosted trajectory generation
 Coming soon!
 
 ### Evaluate trajectories
 
-To evaluate the trajectories, we use the `postprocessing.py` script:
+Similarly, to evaluate the trajectories, we use the `postprocessing.py` script alongside a YAML configuration file:
 
 ```bash
-python bixbench/postprocessing.py --data_path bixbench_results/raw_trajectory_data.csv
+python bixbench/postprocessing.py --config_file bixbench/run_configuration/postprocessing.yaml
 ```
 
 This script will:
@@ -131,7 +132,7 @@ This script will:
 1. Load the raw trajectory data
 2. Create an evaluation dataframe
 3. Run majority vote analysis (for MCQ questions)
-4. Compare model performance across different run groups defined in `config.py`
+4. Compare model performance across different run groups defined in the YAML file
 5. Generate visualizations
 
 The script will save the evaluation dataframe as a CSV file in the `bixbench_results/` directory as well as the plots.
@@ -156,10 +157,10 @@ wget https://storage.googleapis.com/bixbench-results/raw_trajectory_data.csv -P 
 wget https://storage.googleapis.com/bixbench-results/eval_df.csv -P bixbench_results/
 ```
 
-You can then run the postprocessing script to generate the evaluation dataframe and analysis plots using the `--checkpointing` flag to load the evaluation dataframe directly:
+You can then run the postprocessing script to generate the evaluation dataframe and analysis plots using the `bixbench/run_configuration/bixbench_paper_results.yaml` configuration file:
 
 ```bash
-python bixbench/postprocessing.py --data_path bixbench_results/raw_trajectory_data.csv --checkpointing
+python bixbench/postprocessing.py --config_file bixbench/run_configuration/bixbench_paper_results.yaml
 ```
 
 You will see the following figures from the paper:

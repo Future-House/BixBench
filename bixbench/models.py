@@ -5,7 +5,7 @@ from aviary.utils import EvalAnswerMode
 from fhda import prompts
 from fhda.utils import NBLanguage
 from ldp.agent import AgentConfig
-from pydantic import BaseModel, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class AgentSettings(BaseModel):
@@ -160,3 +160,38 @@ class BixbenchConfig(BaseModel):
         self.local_data_folder = path_dict["local_data_folder"]
 
         return self
+
+
+class PaperReplicationConfig(BaseModel):
+    run: bool = False
+    from_trajectories: bool = True
+
+
+class MajorityVoteConfig(BaseModel):
+    run: bool = False
+    k_value: int = 10
+    groups: dict[str, list[str]] = Field(default_factory=dict)
+
+
+class RunComparisonConfig(BaseModel):
+    run: bool = True
+    # This is used to account for environment failures that don't always show up in the data
+    total_questions_per_run: int = 296
+    run_name_groups: list[list[str]] = Field(default_factory=list)
+    group_titles: list[str] = Field(default_factory=list)
+    color_groups: list[str] = Field(default_factory=list)
+    use_zero_shot_baselines: bool = False
+    random_baselines: list[Optional[float]] = Field(default_factory=list)
+    baseline_name_mappings: dict[str, str] = Field(default_factory=dict)
+
+
+class PostprocessingConfig(BaseModel):
+    data_path: str = "data/trajectories/"
+    results_dir: str = "bixbench_results"
+    checkpointing: bool = False
+
+    replicate_paper_results: PaperReplicationConfig = Field(
+        default_factory=PaperReplicationConfig
+    )
+    majority_vote: MajorityVoteConfig = Field(default_factory=MajorityVoteConfig)
+    run_comparison: RunComparisonConfig = Field(default_factory=RunComparisonConfig)

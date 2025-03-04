@@ -5,9 +5,11 @@ import json
 import random
 import re
 from asyncio import Semaphore
+from pathlib import Path
 from typing import Any, Optional
 
 import litellm
+import nbformat
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
@@ -15,6 +17,15 @@ from tqdm import tqdm
 from bixbench import prompts
 
 litellm.set_verbose = False
+
+
+def load_dataframe_from_json_directory(path: str) -> pd.DataFrame:
+    """Load a dataframe from a json directory."""
+    data = []
+    for file in list(Path(path).glob("**/*.json")):
+        with open(file, encoding="utf-8") as f:
+            data.append(json.load(f))
+    return pd.DataFrame(data)
 
 
 def flatten_list(nested_list: list[list[Any]]) -> list[Any]:
@@ -86,6 +97,11 @@ async def run_eval_loop(
     Returns:
         Updated dataframe with model responses in the llm_answer column
     """
+    # Ensure llm_answer column is of object type to handle mixed data types
+    if "llm_answer" not in eval_df.columns:
+        eval_df["llm_answer"] = None
+    eval_df["llm_answer"] = eval_df["llm_answer"].astype("object")
+
     # Create tasks for all models to run concurrently
     tasks = [
         process_model_batch(eval_df, model_key, model_name, max_concurrent)
@@ -202,6 +218,22 @@ def encode_image_to_base64(image: str) -> str:
     return base64.b64encode(decoded_image).decode("utf-8")
 
 
+def load_notebook(notebook: str | dict[str, Any]) -> dict[str, Any]:
+    """Parse a notebook into nbformat.
+
+    Attempts to parse a notebook into a dictionary format using nbformat.
+
+    Args:
+        notebook: The notebook to parse, which could be a string or a dictionary
+
+    Returns:
+        Dictionary representation of the notebook or empty dict if parsing fails
+    """
+    if isinstance(notebook, str):
+        return nbformat.reads(json.dumps(ast.literal_eval(notebook)), as_version=4)
+    return nbformat.from_dict(notebook)
+
+
 def load_answer(answer: str | dict[str, Any]) -> dict[str, Any]:
     """Parse an answer into a dictionary format.
 
@@ -245,10 +277,11 @@ def create_eval_df(data: list[dict[str, Any]]) -> pd.DataFrame:
     evaluation_data = data.copy()
 
     # Handle list type agent answers
-    mask = evaluation_data["agent_answer"].apply(lambda x: isinstance(x, list))
-    evaluation_data.loc[mask, "agent_answer"] = evaluation_data.loc[
-        mask, "agent_answer"
-    ].apply(lambda x: {f"q{i}": v for i, v in enumerate(x)})
+    for col in ["agent_answer", "mcq_question", "mcq_options"]:
+        mask = evaluation_data[col].apply(lambda x: isinstance(x, list))
+        evaluation_data.loc[mask, col] = evaluation_data.loc[mask, col].apply(
+            lambda x: {f"q{i + 1}": v for i, v in enumerate(x)}
+        )
 
     # Filter out rows without agent answers
     evaluation_data = evaluation_data[evaluation_data["agent_answer"].apply(bool)]
@@ -282,13 +315,24 @@ def create_eval_df(data: list[dict[str, Any]]) -> pd.DataFrame:
         "mcq_options": exploded.apply(
             lambda row: row["mcq_options"].get(row["question_keys"], None), axis=1
         ),
-        "refusal_option": exploded["refusal_option"],
-        "question_format": exploded["question_format"],
-        "model": exploded["model"],
+        "refusal_option": exploded.get("refusal_option", None),
+        "question_format": exploded.get("question_format", None),
+        "model": exploded.get("model", None),
     })
 
-    result[["formatted_question", "correct_letter", "insufficient_letter"]] = (
-        result.apply(
+    # Drop rows with no question or no format
+    result = result.dropna(subset=["question", "question_format"], how="any")
+
+    # Drop MCQ questions with any NaN values
+    mcq_mask = result["question_format"] == "mcq"
+    result = result[~(mcq_mask & result.isna().any(axis=1))]
+
+    # Apply MCQ formatting only to MCQ questions
+    mcq_rows = result[result["question_format"] == "mcq"].index
+    if len(mcq_rows) > 0:
+        result.loc[
+            mcq_rows, ["formatted_question", "correct_letter", "refusal_letter"]
+        ] = result.loc[mcq_rows].apply(
             lambda row: pd.Series(
                 questions_to_mcq(
                     row["question"],
@@ -298,7 +342,6 @@ def create_eval_df(data: list[dict[str, Any]]) -> pd.DataFrame:
             ),
             axis=1,
         )
-    )
 
     result["prompt"] = result.apply(create_prompt, axis=1)
     result["content"] = result.apply(create_llm_message_content, axis=1)
@@ -391,13 +434,15 @@ def create_prompt(row: pd.Series) -> str | float:
     Returns:
         Formatted prompt string or np.nan if no matching format
     """
-    if "open" in row["question_format"]:
+    question_format = row.get("question_format", None)
+
+    if question_format == "open":
         return prompts.OPEN_ENDED_EVAL_PROMPT.format(
             question=row.question,
             correct_answer=row.ideal_answer,
             proposed_answer=row.agent_answer,
         )
-    if "mcq" in row["question_format"]:
+    if question_format == "mcq":
         return (
             prompts.MCQ_EVAL_PROMPT.replace("{{notebook}}", row.md_notebook)
             .replace("{{question}}", row.formatted_question)
@@ -517,14 +562,14 @@ def wilson_ci(p: float, n: int, z: float = 1.96) -> tuple[float, float]:
 
 
 def calculate_results(
-    df: pd.DataFrame, total_questions: Optional[int] = None
+    df: pd.DataFrame, total_questions_per_run: Optional[int] = None
 ) -> dict[str, dict[str, float]]:
     """
     Calculate means and confidence intervals for each model and format.
 
     Args:
         df: DataFrame containing model evaluation results
-        total_questions: Total number of questions to normalize
+        total_questions_per_run: Total number of questions to normalize
             by as some runs may have failed and were not included in the eval_df
 
     Returns:
@@ -536,11 +581,15 @@ def calculate_results(
         scores = df[mask]["correct"]
         if len(scores) > 0:
             mean = (
-                scores.sum() / total_questions
-                if total_questions is not None
+                scores.sum() / total_questions_per_run
+                if total_questions_per_run is not None
                 else scores.mean()
             )
-            n = total_questions if total_questions is not None else len(scores)
+            n = (
+                total_questions_per_run
+                if total_questions_per_run is not None
+                else len(scores)
+            )
             ci_low, ci_high = wilson_ci(mean, n)
             results[run] = {
                 "mean": mean,

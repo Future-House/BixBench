@@ -1,0 +1,21 @@
+data_path: "data/trajectories/"
+results_dir: "bixbench_results"
+checkpointing: false
+
+# Paper replication configuration
+replicate_paper_results:
+  run: false
+  from_trajectories: true
+# Majority vote configuration
+majority_vote:
+  run: false
+# Run comparison configuration
+run_comparison:
+  run: true
+  total_questions: 296
+  run_name_groups:
+    - ["bixbench-run-3-claude3.7", "bixbench-run-2-claude"]
+  group_titles:
+    - "Claude 3.7"
+    - "Claude 3.5"
+  use_zero_shot_baselines: false

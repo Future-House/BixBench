@@ -1,0 +1,47 @@
+results_dir: "bixbench_results"
+
+replicate_paper_results:
+  run: true
+  from_trajectories: false # if false it goes straight from pre-comuputed eval_df
+
+majority_vote:
+  run: true
+  k_value: 10
+  groups:
+    image_comparison:
+      - "claude_mcq_image_with_refusal"
+      - "4o_mcq_image_with_refusal"
+      - "claude_mcq_no_image_with_refusal"
+      - "4o_mcq_no_image_with_refusal"
+    refusal_option_comparison:
+      - "claude_mcq_image_without_refusal"
+      - "4o_mcq_image_without_refusal"
+      - "claude_mcq_image_with_refusal" 
+      - "4o_mcq_image_with_refusal"
+
+run_comparison:
+  run: true
+  total_questions_per_run: 2960
+  run_name_groups:
+    - ["4o_open_image", "claude_open_image"]
+    - ["4o_mcq_image_with_refusal", "claude_mcq_image_with_refusal"]
+    - ["4o_mcq_image_without_refusal", "claude_mcq_image_without_refusal"]
+  group_titles:
+    - "Open-answer"
+    - "MCQ w/ refusal"
+    - "MCQ w/o refusal"
+  color_groups:
+    - "4o"
+    - "claude"
+  use_zero_shot_baselines: true
+  random_baselines:
+    - null
+    - 0.2
+    - 0.25
+  baseline_name_mappings:
+    "gpt-4o-grader-openended": "4o_open_image"
+    "claude-3-5-sonnet-latest-grader-openended": "claude_open_image"
+    "gpt-4o-grader-mcq-refusal-True": "4o_mcq_image_with_refusal"
+    "claude-3-5-sonnet-latest-grader-mcq-refusal-True": "claude_mcq_image_with_refusal"
+    "gpt-4o-grader-mcq-refusal-False": "4o_mcq_image_without_refusal"
+    "claude-3-5-sonnet-latest-grader-mcq-refusal-False": "claude_mcq_image_without_refusal"

@@ -394,7 +394,7 @@ if __name__ == "__main__":
         description="Generate trajectories for BixBench tasks"
     )
     parser.add_argument(
-        "--config",
+        "--config_file",
         type=str,
         default=str(DEFAULT_CONFIG_PATH),
         help="Path to the configuration YAML file",
