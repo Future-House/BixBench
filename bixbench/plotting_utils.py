@@ -3,7 +3,6 @@
 
 from typing import Optional
 
-import config as cfg
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib import ticker
@@ -16,12 +15,15 @@ set_fh_mpl_style()
 # There is stochasticity in the majority vote accuracy plot, so we set a seed for reproducibility
 np.random.default_rng(42)
 
+COLOR_CYCLE = ["#1BBC9B", "#FF8C00", "#FF69B4", "#ce8aed", "#80cedb", "#FFFFFF"]
+
 
 def majority_vote_accuracy_by_k(
     run_results: dict[str, tuple[list[int], list[float], list[float]]],
     name: str = "",
     random_baselines: Optional[list[float]] = None,
     random_baselines_labels: Optional[list[str]] = None,
+    results_dir: str = "bixbench_results",
 ) -> None:
     """
     Plot the accuracy of majority voting as a function of the number of votes (k).
@@ -31,6 +33,7 @@ def majority_vote_accuracy_by_k(
         name: Name suffix for the saved plot file
         random_baselines: List of accuracy values for random baseline models
         random_baselines_labels: Labels for the random baseline models
+        results_dir: Directory to save results
 
     Returns:
         None: Saves the plot to disk and displays it
@@ -45,7 +48,6 @@ def majority_vote_accuracy_by_k(
     plt.figure(figsize=(15, 6))
 
     for run_name, (k_values, means, stds) in run_results.items():
-        print(k_values, means, stds)
         if k_values is None:
             continue
         plt.plot(k_values, means, "o-", label=run_name)
@@ -80,7 +82,7 @@ def majority_vote_accuracy_by_k(
         )
     plt.legend(loc="upper left")
     plt.grid(alpha=0.3, visible=True)
-    plt.savefig(f"{cfg.RESULTS_DIR}/majority_vote_accuracy_{name}.png")
+    plt.savefig(f"{results_dir}/majority_vote_accuracy_{name}.png")
     plt.show()
 
 
@@ -89,6 +91,9 @@ def plot_model_comparison(
     baselines: dict[str, float],
     run_groups: list[list[str]],
     color_groups: list[str],
+    group_titles: Optional[list[str]] = None,
+    random_baselines: Optional[list[float]] = None,
+    results_dir: str = "bixbench_results",
 ) -> None:
     """
     Create a bar chart comparing model performance across different formats.
@@ -98,6 +103,9 @@ def plot_model_comparison(
         baselines: Dictionary mapping run names to baseline performance values
         run_groups: List of lists, where each inner list contains run names in a group
         color_groups: List of group names for color mapping
+        group_titles: Optional list of titles for each group
+        random_baselines: Optional list of random baseline values for each group
+        results_dir: Directory to save results
 
     Returns:
         None: Saves the plot to disk and displays it
@@ -106,13 +114,17 @@ def plot_model_comparison(
     plt.figure(figsize=(10, 5))
     x_axis = np.arange(len(run_groups))
     bar_width = 0.35
-    color_map = {group: cfg.COLOR_CYCLE[i] for i, group in enumerate(color_groups)}
+    color_map = {group: COLOR_CYCLE[i] for i, group in enumerate(color_groups)}
+
+    # Use default group titles if not provided
+    if group_titles is None or len(group_titles) != len(run_groups):
+        group_titles = [f"Group {i + 1}" for i in range(len(run_groups))]
 
     # Draw model performance bars
     draw_model_bars(x_axis, results, run_groups, bar_width, color_map)
 
     # Draw baseline lines
-    draw_baselines(x_axis, baselines, run_groups, bar_width)
+    draw_baselines(x_axis, baselines, run_groups, bar_width, random_baselines)
 
     # Customize plot appearance
     plt.ylabel("Accuracy", fontsize=18)
@@ -120,14 +132,14 @@ def plot_model_comparison(
     plt.title("Model Performance by Group with Wilson CI @95%")
     plt.xticks(
         x_axis + bar_width / 2,
-        cfg.GROUP_TITLES,
+        group_titles,
         fontsize=18,
     )
 
     plt.legend()
     plt.grid(visible=True, axis="y", linestyle="--", alpha=0.7)
     plt.tight_layout()
-    plt.savefig(f"{cfg.RESULTS_DIR}/bixbench_results_comparison.png")
+    plt.savefig(f"{results_dir}/bixbench_results_comparison.png")
     plt.show()
 
 
@@ -136,6 +148,7 @@ def draw_baselines(
     baselines: dict[str, float],
     run_groups: list[list[str]],
     bar_width: float,
+    random_baselines: Optional[list[float]] = None,
 ) -> None:
     """
     Draw baseline lines on the plot for performance comparison.
@@ -145,6 +158,7 @@ def draw_baselines(
         baselines: Dictionary mapping run names to baseline performance values
         run_groups: List of lists, where each inner list contains run names in a group
         bar_width: Width of the bars in the plot
+        random_baselines: Optional list of random baseline values for each group
 
     Returns:
         None
@@ -176,7 +190,7 @@ def draw_baselines(
 
     # Draw random guess baselines
     random_label_used = False
-    for c, baseline in enumerate(cfg.RANDOM_BASELINES):
+    for c, baseline in enumerate(random_baselines):
         if baseline is None:
             continue
         plt.hlines(
@@ -226,7 +240,6 @@ def draw_model_bars(
                 if group in run_name
             )
             xpos = x_axis[group_idx] + j * bar_width
-            print(run_name, color, mean, yerr, label)
             plt.bar(
                 xpos,
                 mean,
@@ -236,3 +249,82 @@ def draw_model_bars(
                 yerr=yerr,
                 capsize=5,
             )
+
+
+def plot_simplified_comparison(
+    results: dict[str, dict[str, float]],
+    run_groups: list[list[str]],
+    group_titles: Optional[list[str]] = None,
+    has_mcq: bool = False,
+    results_dir: str = "bixbench_results",
+) -> None:
+    """
+    Create a simplified bar chart comparing model performance.
+
+    Args:
+        results: Dictionary mapping run names to performance metrics (mean, ci_low, ci_high)
+        run_groups: List of lists, where each inner list contains run names in a group
+        group_titles: Optional titles for each group
+        has_mcq: Whether the results include MCQ questions (to show random baselines)
+        results_dir: Directory to save results
+
+    Returns:
+        None: Saves the plot to disk and displays it
+    """
+    # Setup
+    plt.figure(figsize=(10, 5))
+    x_axis = np.arange(len(run_groups))
+    width = 0.8 / max(len(group) for group in run_groups)
+
+    # Use group titles if provided, otherwise generate generic ones
+    if group_titles is None or len(group_titles) != len(run_groups):
+        group_titles = [f"Group {i + 1}" for i in range(len(run_groups))]
+
+    # Prepare colors from a default color cycle
+    color_cycle = plt.rcParams["axes.prop_cycle"].by_key()["color"]
+
+    # Draw bars for each run
+    for i, group in enumerate(run_groups):
+        for j, run_name in enumerate(group):
+            if run_name not in results:
+                continue
+
+            result = results[run_name]
+            mean = result["mean"]
+            ci_low = result["ci_low"]
+            ci_high = result["ci_high"]
+            yerr = np.array([[mean - ci_low], [ci_high - mean]])
+
+            # Calculate bar position
+            pos = x_axis[i] + (j - len(group) / 2 + 0.5) * width
+
+            # Get color
+            color_idx = j % len(color_cycle)
+            color = color_cycle[color_idx]
+
+            plt.bar(
+                pos,
+                mean,
+                width,
+                label=run_name if i == 0 else None,
+                color=color,
+                yerr=yerr,
+                capsize=5,
+            )
+
+    # Add random baselines for MCQ questions
+    if has_mcq:
+        plt.axhline(y=0.2, color="red", linestyle="--", label="Random (w/ refusal)")
+        plt.axhline(y=0.25, color="green", linestyle="--", label="Random (w/o refusal)")
+
+    # Customize plot appearance
+    plt.ylabel("Accuracy", fontsize=14)
+    plt.title("Model Performance Comparison")
+    plt.xticks(x_axis, group_titles, fontsize=12)
+    plt.legend(loc="best")
+    plt.grid(visible=True, axis="y", linestyle="--", alpha=0.7)
+
+    # Save and show plot
+    plt.tight_layout()
+    plt.savefig(f"{results_dir}/model_comparison.png")
+    plt.show()

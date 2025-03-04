@@ -1,18 +1,24 @@
 import argparse
 import ast
 import asyncio
+import contextlib
 import json
 import operator
 import os
+from pathlib import Path
 from typing import Any
 
-import config as cfg
-import nbformat
 import pandas as pd
+import yaml
 from fhda.utils import view_notebook
 
 from bixbench import plotting_utils
 from bixbench import postprocessing_utils as utils
+from bixbench.models import (
+    MajorityVoteConfig,
+    PostprocessingConfig,
+    RunComparisonConfig,
+)
 
 pd.options.mode.chained_assignment = None
 # If true, save and load intermediate results to avoid re-running the same steps
@@ -20,28 +26,36 @@ pd.options.mode.chained_assignment = None
 
 def load_raw_data(path: str) -> pd.DataFrame:
     """
-    Load raw data from a CSV file and process specific columns.
+    Load raw data from a CSV file or directory of json files and process specific columns.
+
+    If the path is a directory, all json files in the directory will be loaded into a dataframe.
 
     Args:
-        path (str): Path to the CSV file containing raw data
+        path (str): Path to the CSV file or directory containing raw data
 
     Returns:
         pd.DataFrame: Processed DataFrame with converted column types
     """
-    raw_data = pd.read_csv(path)
+    raw_data = (
+        utils.load_dataframe_from_json_directory(path)
+        if Path(path).is_dir()
+        else pd.read_csv(path)
+    )
+
     mapping = {
         "agent_answer": utils.load_answer,
         "ideal_answer": utils.load_answer,
         "mcq_options": ast.literal_eval,
         "mcq_question": ast.literal_eval,
-        "nb": lambda x: nbformat.reads(json.dumps(ast.literal_eval(x)), as_version=4),
+        "nb": utils.load_notebook,
         "avoid_images": bool,
         "actions": int,
         "refusal_option": bool,
     }
     for col, func in mapping.items():
         if col in raw_data.columns:
-            raw_data[col] = raw_data[col].apply(func)
+            with contextlib.suppress(ValueError):
+                raw_data[col] = raw_data[col].apply(func)
 
     # Convert json notebook to markdown for postprocessing
     if "nb" in raw_data.columns and "nb_md" not in raw_data.columns:
@@ -53,9 +67,7 @@ def load_raw_data(path: str) -> pd.DataFrame:
     return raw_data
 
 
-async def process_trajectories(
-    df: pd.DataFrame, checkpointing: bool = True
-) -> pd.DataFrame:
+async def process_trajectories(df: pd.DataFrame) -> pd.DataFrame:
     """
     Create a gradable dataframe from a raw dataframe of trajectories.
 
@@ -64,7 +76,6 @@ async def process_trajectories(
 
     Args:
         df (pd.DataFrame): Raw data containing model trajectories
-        checkpointing (bool): Whether to save intermediate results to CSV files
 
     Returns:
         pd.DataFrame: Processed evaluation dataframe with graded responses
@@ -85,13 +96,12 @@ async def process_trajectories(
         eval_df.loc[eval_df.question_format == "mcq", "llm_answer"]
         == eval_df.loc[eval_df.question_format == "mcq", "correct_letter"]
     )
-    if checkpointing:
-        eval_df.to_csv("bixbench_results/eval_df.csv", index=False)
+
     return eval_df
 
 
 async def run_majority_vote(
-    eval_df: pd.DataFrame, k_value: int = 10
+    eval_df: pd.DataFrame, config: MajorityVoteConfig, results_dir: str
 ) -> dict[str, tuple[list[int], list[float], list[float]]]:
     """
     Implement majority voting evaluation across different model configurations.
@@ -102,7 +112,8 @@ async def run_majority_vote(
 
     Args:
         eval_df (pd.DataFrame): DataFrame containing evaluation results
-        k_value (int): Maximum number of samples to consider for majority voting
+        config (MajorityVoteConfig): Configuration for majority voting
+        results_dir (str): Directory to save results
 
     Returns:
         Dict[str, Tuple[List[int], List[float], List[float]]]: Dictionary mapping run names to
@@ -114,6 +125,10 @@ async def run_majority_vote(
     if maj_vote_df.empty:
         print("No MCQ questions found, skipping majority vote")
         return {}
+
+    # Get configuration values
+    k_value = config.k_value
+    mv_groups = config.groups
 
     # Store results for all runs
     run_results = {}
@@ -130,24 +145,40 @@ async def run_majority_vote(
         )
         run_results[run_name] = (k_values, means, stds)
 
-    for group_name, group_runs in cfg.MAJORITY_VOTE_GROUPS.items():
-        random_baselines = [0.2]
+    # Plot results for each group if specified in config
+    for group_name, group_runs in mv_groups.items():
+        # Filter run_results to only include runs specified in the group
+        filtered_results = {
+            run_name: run_results[run_name]
+            for run_name in group_runs
+            if run_name in run_results
+        }
+
+        # Determine random baselines
+        random_baselines = [0.2]  # Default with refusal option
         random_baselines_labels = ["Random Guess with Refusal Option"]
+
         if any("without_refusal" in run_name for run_name in group_runs):
             random_baselines.append(0.25)
             random_baselines_labels.append("Random Guess without Refusal Option")
 
         plotting_utils.majority_vote_accuracy_by_k(
-            {run_name: run_results[run_name] for run_name in group_runs},
+            filtered_results,
             name=group_name,
             random_baselines=random_baselines,
             random_baselines_labels=random_baselines_labels,
+            results_dir=results_dir,
         )
 
     return run_results
 
 
-async def compare_runs(eval_df: pd.DataFrame) -> dict[str, dict[str, Any]]:
+async def compare_runs(
+    eval_df: pd.DataFrame,
+    config: RunComparisonConfig,
+    results_dir: str,
+    replicate_paper_results: bool,
+) -> dict[str, dict[str, Any]]:
     """
     Compare performance between different model architectures.
 
@@ -156,66 +187,158 @@ async def compare_runs(eval_df: pd.DataFrame) -> dict[str, dict[str, Any]]:
 
     Args:
         eval_df (pd.DataFrame): DataFrame containing evaluation results
+        config (RunComparisonConfig): Configuration for run comparison
+        results_dir (str): Directory to save results
+        replicate_paper_results (bool): Whether to use the same plots from the paper
 
     Returns:
         Dict[str, Dict[str, Any]]: Performance results for different model configurations
     """
-    # Filter eval_df to only include run_names configured in config.py
-    eval_df = eval_df[eval_df["run_name"].isin(utils.flatten_list(cfg.RUN_NAME_GROUPS))]
+    run_name_groups = config.run_name_groups
+    group_titles = config.group_titles
+    color_groups = config.color_groups
+    total_questions_per_run = config.total_questions_per_run
+
+    # Get baselines configuration
+    baselines = {}
+    if config.use_zero_shot_baselines and os.path.exists(
+        f"{results_dir}/zero_shot_baselines.json"
+    ):
+        with open(f"{results_dir}/zero_shot_baselines.json", encoding="utf-8") as f:
+            baselines_data = json.load(f)
+
+        baseline_mappings = config.baseline_name_mappings
+        baselines = {
+            baseline_mappings.get(k, k): v["accuracy"]
+            for k, v in baselines_data.items()
+        }
+
+    # Get random baselines
+    random_baselines = config.random_baselines
+
+    # Filter eval_df to only include run_names configured
+    flat_run_names = utils.flatten_list(run_name_groups)
+    eval_df = eval_df[eval_df["run_name"].isin(flat_run_names)]
 
     # Calculate means and confidence intervals
-    results = utils.calculate_results(eval_df, total_questions=2960)
-
-    # Plot results
-    plotting_utils.plot_model_comparison(
-        results, cfg.BASELINES, cfg.RUN_NAME_GROUPS, cfg.COLOR_GROUPS
+    results = utils.calculate_results(
+        eval_df, total_questions_per_run=total_questions_per_run
     )
+    print(results)
+
+    if replicate_paper_results:
+        # Plot results using the detailed paper plotting
+        plotting_utils.plot_model_comparison(
+            results,
+            baselines,
+            run_name_groups,
+            color_groups,
+            group_titles=group_titles,
+            random_baselines=random_baselines,
+            results_dir=results_dir,
+        )
+    else:
+        # Use simplified plotting
+        plotting_utils.plot_simplified_comparison(
+            results,
+            run_name_groups,
+            group_titles=group_titles,
+            has_mcq=any("mcq" in run for run in flat_run_names),
+            results_dir=results_dir,
+        )
 
     return results
+
+
+async def load_or_process_data(config) -> pd.DataFrame:
+    """
+    Load data from files or process trajectories based on configuration.
+
+    Args:
+        config: Configuration object with data paths and processing options
+
+    Returns:
+        pd.DataFrame: Processed evaluation dataframe
+    """
+    results_dir = config.results_dir
+    data_path = config.data_path
+    replicate_paper_results = config.replicate_paper_results
+
+    # Case 1: Replicating paper results from trajectories
+    if replicate_paper_results.run and replicate_paper_results.from_trajectories:
+        trajectory_path = f"{results_dir}/raw_trajectory_data.csv"
+        if not os.path.exists(trajectory_path):
+            raise FileNotFoundError(
+                f"raw_trajectory_data.csv not found in {results_dir}, "
+                "please follow the readme to download the raw trajectory data"
+            )
+        data = load_raw_data(trajectory_path)
+        return await process_trajectories(data)
+
+    # Case 2: Replicating paper results from pre-computed eval_df
+    if replicate_paper_results.run and (not replicate_paper_results.from_trajectories):
+        eval_df_path = f"{results_dir}/eval_df.csv"
+        if not os.path.exists(eval_df_path):
+            raise FileNotFoundError(
+                f"eval_df.csv not found in {results_dir}, "
+                "please follow the readme to download the eval_df.csv"
+            )
+        eval_df = pd.read_csv(eval_df_path)
+        eval_df["correct"] = eval_df["correct"].astype(bool)
+        return eval_df
+
+    # Case 3: Running new analysis from raw data
+    data = load_raw_data(data_path)
+    return await process_trajectories(data)
+
+
+async def main(config_path: str):
+    """
+    Main function to run BixBench postprocessing based on YAML configuration.
+
+    Args:
+        config_path (str): Path to the YAML configuration file
+    """
+    # Load configuration
+    with open(config_path, encoding="utf-8") as f:
+        config_dict = yaml.safe_load(f)
+
+    # Parse configuration with Pydantic
+    config = PostprocessingConfig.model_validate(config_dict)
+
+    # Set up results directory
+    results_dir = config.results_dir
+    os.makedirs(results_dir, exist_ok=True)
+
+    # Load or process data based on configuration
+    eval_df = await load_or_process_data(config)
+
+    # Save processed data for future use if this is a new run
+    if not config.replicate_paper_results.run:
+        eval_df.to_csv(f"{results_dir}/eval_df_new.csv", index=False)
+
+    # Run majority vote if configured
+    if config.majority_vote.run:
+        await run_majority_vote(eval_df, config.majority_vote, results_dir)
+
+    # Run comparison if configured
+    if config.run_comparison.run:
+        await compare_runs(
+            eval_df,
+            config.run_comparison,
+            results_dir,
+            config.replicate_paper_results.run,
+        )
 
 
 if __name__ == "__main__":
     # Parse command line arguments
     parser = argparse.ArgumentParser(description="Process BixBench evaluation data")
     parser.add_argument(
-        "--data_path",
-        type=str,
-        default="bixbench_results/raw_trajectory_data.csv",
-        help="Path to the raw trajectory data CSV file",
-    )
-
-    parser.add_argument(
-        "--majority_vote",
-        action="store_true",
-        default=False,
-        help="Whether to run majority vote analysis",
-    )
-
-    parser.add_argument(
-        "--checkpointing",
-        action="store_true",
-        default=True,
-        help="Whether to save and load intermediate results",
+        "config_file", type=str, help="Path to the YAML configuration file"
     )
 
     args = parser.parse_args()
 
-    if args.checkpointing:
-        eval_df = pd.read_csv("bixbench_results/eval_df.csv")
-        eval_df["correct"] = eval_df["correct"].astype(bool)
-    else:
-        # Load raw trajectory data
-        os.makedirs("bixbench_results", exist_ok=True)
-        data = load_raw_data(args.data_path)
-
-        # Process trajectories and save eval df
-        eval_df = asyncio.run(
-            process_trajectories(data, checkpointing=args.checkpointing)
-        )
-
-    if args.majority_vote:
-        # Run majority vote
-        asyncio.run(run_majority_vote(eval_df, k_value=10))
-
-    # Compare runs
-    asyncio.run(compare_runs(eval_df))
+    # Run main function with the config file
+    asyncio.run(main(args.config_file))

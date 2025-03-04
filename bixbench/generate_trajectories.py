@@ -1,3 +1,4 @@
+import argparse
 import ast
 import asyncio
 import json
@@ -7,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 import datasets
+import litellm
 import yaml
 from fhda.data_analysis_env import DataAnalysisEnv
 from fhda.utils import collect_notebook_stats, load_mcq
@@ -14,10 +16,28 @@ from huggingface_hub import hf_hub_download
 from ldp.agent import Agent
 from ldp.alg.rollout import RolloutManager
 from ldp.data_structures import Trajectory, Transition
+from tqdm.auto import tqdm
 
 from bixbench.models import BixbenchConfig
 
+litellm.verbose = False
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[logging.StreamHandler()],
+)
+
+# Specifically silence certain loggers
+logging.getLogger("LiteLLM").setLevel(logging.ERROR)
+logging.getLogger("LiteLLM Router").setLevel(logging.ERROR)
+logging.getLogger("httpx").setLevel(logging.ERROR)
+logging.getLogger("fhda.notebook_env").setLevel(logging.ERROR)
+
 logger = logging.getLogger(__name__)
+
+DEFAULT_CONFIG_PATH = (
+    Path(__file__).parent / "run_configuration" / "generate_trajectories.yaml"
+)
 
 
 class TrajectoryGenerator:
@@ -29,22 +49,32 @@ class TrajectoryGenerator:
     trajectories.
     """
 
-    def __init__(self) -> None:
-        """Initialize the TrajectoryGenerator with config and create necessary directories."""
-        self.config = self.load_config()
+    def __init__(self, config_path=DEFAULT_CONFIG_PATH) -> None:
+        """
+        Initialize the TrajectoryGenerator with config and create necessary directories.
+
+        Args:
+            config_path: Path to the configuration file
+        """
+        self.config = self.load_config(config_path)
         # Create directories
         self.config.local_workspace_dir.mkdir(parents=True, exist_ok=True)
         self.config.local_trajectories_dir.mkdir(parents=True, exist_ok=True)
         self.config.local_data_folder.mkdir(parents=True, exist_ok=True)
 
-    def load_config(self) -> BixbenchConfig:
+    def load_config(self, config_path) -> BixbenchConfig:
         """
-        Load and process configuration from the config.yaml file.
+        Load and process configuration from the provided path.
+
+        Args:
+            config_path: Path to the configuration file
 
         Returns:
             BixbenchConfig: Processed configuration object with validation
         """
-        config_path = Path(__file__).parent / "config.yaml"
+        config_path = Path(config_path)
+        logger.info(f"Loading configuration from: {config_path}")
+
         with open(config_path, encoding="utf-8") as f:
             config_dict = yaml.safe_load(f)
 
@@ -65,7 +95,7 @@ class TrajectoryGenerator:
         # Check if capsule folder exists and is non-empty
         if extract_dir.exists() and any(extract_dir.iterdir()):
             logger.debug(
-                f"Capsule folder {extract_dir.name} already exists and is non-empty"
+                "Capsule folder %s already exists and is non-empty", extract_dir.name
             )
             capsule["local_data_folder"] = extract_dir
             return
@@ -158,6 +188,9 @@ class TrajectoryGenerator:
             "mcq_question": [q.question for q in env.mcqs] if env.mcqs else [],
             "notebook_stats": collect_notebook_stats(env.state.nb),
             "num_actions": len(env.state.actions),
+            "question_format": self.config.capsule.mode,
+            "refusal_option": self.config.capsule.include_refusal_option,
+            "model": self.config.agent.agent_kwargs["llm_model"]["name"],
             # Local data folder is not serializable
             "metadata": {
                 k: v for k, v in env.metadata.items() if k != "local_data_folder"
@@ -336,19 +369,37 @@ class TrajectoryGenerator:
         logger.info("Loading BixBench dataset...")
         bixbench = await self.load_bixbench()
 
-        # Process environments in batches
-        for i in range(0, len(bixbench), self.config.rollout.batch_size):
-            logger.info(
-                f"Processing batch {i // self.config.rollout.batch_size + 1} "
-                f"of {len(bixbench) // self.config.rollout.batch_size}"
-            )
-            batch = bixbench[i : i + self.config.rollout.batch_size]
-            environments = [self.environment_factory(capsule) for capsule in batch]
-            results = await self.batch_rollout(environments)
-            for trajectory, env in results:
-                await self.store_trajectory(trajectory, env)
+        # Process environments in batches with tqdm progress bar
+        total_batches = (
+            len(bixbench) + self.config.rollout.batch_size - 1
+        ) // self.config.rollout.batch_size
+
+        with tqdm(total=len(bixbench), desc="Processing benchmark tasks") as pbar:
+            for i in range(0, len(bixbench), self.config.rollout.batch_size):
+                batch = bixbench[i : i + self.config.rollout.batch_size]
+                environments = [self.environment_factory(capsule) for capsule in batch]
+                results = await self.batch_rollout(environments)
+                for trajectory, env in results:
+                    await self.store_trajectory(trajectory, env)
+
+                # Update progress bar
+                pbar.update(len(batch))
+                pbar.set_postfix({
+                    "batch": f"{i // self.config.rollout.batch_size + 1}/{total_batches}"
+                })
 
 
 if __name__ == "__main__":
-    generator = TrajectoryGenerator()
+    parser = argparse.ArgumentParser(
+        description="Generate trajectories for BixBench tasks"
+    )
+    parser.add_argument(
+        "--config_file",
+        type=str,
+        default=str(DEFAULT_CONFIG_PATH),
+        help="Path to the configuration YAML file",
+    )
+    args = parser.parse_args()
+
+    generator = TrajectoryGenerator(args.config)
     asyncio.run(generator.run())
