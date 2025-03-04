@@ -1,4 +1,5 @@
 results_dir: "bixbench_results"
+debug: true
 
 replicate_paper_results:
   run: true

@@ -313,8 +313,8 @@ async def main(config_path: str):
     # Load or process data based on configuration
     eval_df = await load_or_process_data(config)
 
-    # Save processed data for future use if this is a new run
-    if not config.replicate_paper_results.run:
+    # Save intermediary processed data for debugging
+    if config.debug | (config.replicate_paper_results.from_trajectories):
         eval_df.to_csv(f"{results_dir}/eval_df_new.csv", index=False)
 
     # Run majority vote if configured

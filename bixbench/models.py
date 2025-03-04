@@ -188,7 +188,7 @@ class RunComparisonConfig(BaseModel):
 class PostprocessingConfig(BaseModel):
     data_path: str = "data/trajectories/"
     results_dir: str = "bixbench_results"
-    checkpointing: bool = False
+    debug: bool = False
 
     replicate_paper_results: PaperReplicationConfig = Field(
         default_factory=PaperReplicationConfig

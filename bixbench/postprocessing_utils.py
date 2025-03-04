@@ -291,7 +291,6 @@ def create_eval_df(data: list[dict[str, Any]]) -> pd.DataFrame:
     evaluation_data["question_keys"] = evaluation_data["ideal_answer"].apply(
         lambda x: list(x.keys())
     )
-
     # Explode the dataframe to create one row per question
     exploded = evaluation_data.explode("question_keys")
 
@@ -321,7 +320,9 @@ def create_eval_df(data: list[dict[str, Any]]) -> pd.DataFrame:
     })
 
     # Drop rows with no question or no format
-    result = result.dropna(subset=["question", "question_format"], how="any")
+    result = result.dropna(
+        subset=["question", "question_format"], how="any"
+    ).reset_index(drop=True)
 
     # Drop MCQ questions with any NaN values
     mcq_mask = result["question_format"] == "mcq"
@@ -338,11 +339,11 @@ def create_eval_df(data: list[dict[str, Any]]) -> pd.DataFrame:
                     row["question"],
                     row["mcq_options"],
                     refusal_option=row["refusal_option"],
-                )
+                ),
+                index=["formatted_question", "correct_letter", "refusal_letter"],
             ),
             axis=1,
         )
-
     result["prompt"] = result.apply(create_prompt, axis=1)
     result["content"] = result.apply(create_llm_message_content, axis=1)
 

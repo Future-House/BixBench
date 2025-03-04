@@ -1,11 +1,10 @@
 data_path: "data/trajectories/"
 results_dir: "bixbench_results"
-checkpointing: false
-
+debug: true
 # Paper replication configuration
 replicate_paper_results:
   run: false
-  from_trajectories: true
+
 # Majority vote configuration
 majority_vote:
   run: false
