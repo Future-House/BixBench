@@ -52,18 +52,18 @@ async def grade_open_ended_answer(question, target, predicted, llm_client):
     return grade, correct, refusal
 
 
-def compute_metrics(grades: list[bool], is_refued: list[bool]) -> dict:
+def compute_metrics(grades: list[bool], is_refused: list[bool]) -> dict:
     """Calculate metrics for question answering evaluation.
 
     Accuracy = (num correct) / (num questions)
     precision = (num correct) / ((num questions) - (num unsure)).
     """
-    if len(grades) != len(is_refued):
-        raise ValueError("is_correct and is_refued must have the same length")
+    if len(grades) != len(is_refused):
+        raise ValueError("is_correct and is_refused must have the same length")
 
     n_total = len(grades)
     n_correct = sum(grades)
-    n_unsure = sum(1 for x in is_refued if x)
+    n_unsure = sum(1 for x in is_refused if x)
     n_sure = n_total - n_unsure
     # Calculate metrics
     accuracy = n_correct / n_total if n_total > 0 else 0
