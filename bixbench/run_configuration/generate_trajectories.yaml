@@ -33,4 +33,4 @@ paths:
   workspace_dir: "data/workspace"
   trajectories_dir: "data/trajectories"
   data_folder: "data/capsules"
-  hf_repo_id: "futurehouse/bixbench-internal"
+  hf_repo_id: "futurehouse/bixbench"
