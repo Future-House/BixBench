@@ -1,0 +1,36 @@
+run_name: "bixbench-gpt4o-mcq"
+
+agent:
+  agent_type: "ReActAgent"
+  agent_kwargs:
+    llm_model:
+      name: "gpt-4o"
+      parallel_tool_calls: false
+      num_retries: 5
+      temperature: 1.0
+    hide_old_env_states: true
+rollout:
+  max_steps: 40
+  batch_size: 4
+  rollout_type: "aviary"
+
+notebook:
+  name: "notebook.ipynb"
+  language: "python"
+
+capsule:
+  mode: "mcq"  # Set to "mcq" for multiple choice questions
+  include_refusal_option: true
+  system_prompt: "CAPSULE_SYSTEM_PROMPT_MCQ"
+  prompt_templates:
+    mcq: "MCQ_PROMPT_TEMPLATE"
+    open: "OPEN_PROMPT_TEMPLATE"
+    hypothesis: "HYPOTHESIS_PROMPT_TEMPLATE"
+  eval_mode: null  # When set to None, the capsule will not evaluate the answer
+  avoid_images: true
+
+paths:
+  workspace_dir: "data/workspace"
+  trajectories_dir: "data/trajectories/gpt4o_mcq"
+  data_folder: "data/capsules"
+  hf_repo_id: "futurehouse/bixbench"

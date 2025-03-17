@@ -1,0 +1,135 @@
+# Configuration for running BixBench evaluations on multiple models
+# Models: GPT-4o, Claude Sonnet 3.5, o3-mini, Claude Sonnet 3.7, DeepSeek R1
+
+# Base shared configuration
+base:
+  rollout:
+    max_steps: 40
+    batch_size: 4
+    rollout_type: "aviary"
+  
+  notebook:
+    name: "notebook.ipynb"
+    language: "python"
+  
+  capsule:
+    mode: "open"  # Can be "open" or "mcq"
+    include_refusal_option: true
+    system_prompt: "CAPSULE_SYSTEM_PROMPT_OPEN"
+    prompt_templates:
+      mcq: "MCQ_PROMPT_TEMPLATE"
+      open: "OPEN_PROMPT_TEMPLATE"
+      hypothesis: "HYPOTHESIS_PROMPT_TEMPLATE"
+    eval_mode: null  # When set to None, the capsule will not evaluate the answer
+    avoid_images: true
+  
+  paths:
+    workspace_dir: "data/workspace"
+    data_folder: "data/capsules"
+    hf_repo_id: "futurehouse/bixbench"
+
+# GPT-4o Configuration
+gpt4o:
+  run_name: "bixbench-gpt4o"
+  agent:
+    agent_type: "ReActAgent"
+    agent_kwargs:
+      llm_model:
+        name: "gpt-4o"
+        parallel_tool_calls: false
+        num_retries: 5
+        temperature: 1.0
+      hide_old_env_states: true
+  paths:
+    trajectories_dir: "data/trajectories/gpt4o"
+
+# Claude 3.5 Sonnet Configuration
+claude35:
+  run_name: "bixbench-claude35"
+  agent:
+    agent_type: "ReActAgent"
+    agent_kwargs:
+      llm_model:
+        name: "claude-3-5-sonnet-20241022"
+        parallel_tool_calls: false
+        num_retries: 5
+        temperature: 1.0
+      hide_old_env_states: true
+  paths:
+    trajectories_dir: "data/trajectories/claude35"
+
+# GPT-o3-mini configuration has been removed as requested
+
+# Claude 3.7 Sonnet Configuration
+claude37:
+  run_name: "bixbench-claude37"
+  agent:
+    agent_type: "ReActAgent"
+    agent_kwargs:
+      llm_model:
+        name: "claude-3-7-sonnet-20250219"
+        parallel_tool_calls: false
+        num_retries: 5
+        temperature: 1.0
+      hide_old_env_states: true
+  paths:
+    trajectories_dir: "data/trajectories/claude37"
+
+# DeepSeek R1 Configuration
+deepseek:
+  run_name: "bixbench-deepseek"
+  agent:
+    agent_type: "ReActAgent"
+    agent_kwargs:
+      llm_model:
+        name: "deepseek-coder:1.0"  # May need to adjust based on actual model ID
+        parallel_tool_calls: false
+        num_retries: 5
+        temperature: 1.0
+      hide_old_env_states: true
+  paths:
+    trajectories_dir: "data/trajectories/deepseek"
+
+# Postprocessing Configuration
+postprocessing:
+  results_dir: "bixbench_results/multi_model"
+  replicate_paper_results:
+    run: false
+    from_trajectories: true
+  debug: true
+  
+  # Majority voting for MCQ questions
+  majority_vote:
+    run: true
+    k_value: 10
+    groups:
+      model_comparison:
+        - "bixbench-gpt4o"
+        - "bixbench-claude35"
+        - "bixbench-claude37"
+        # DeepSeek R1 commented out for initial experiment
+        # - "bixbench-deepseek"
+  
+  # Run comparison for model performance
+  run_comparison:
+    run: true
+    run_name_groups:
+      - ["bixbench-gpt4o"]
+      - ["bixbench-claude35"]
+      - ["bixbench-claude37"]
+      # DeepSeek R1 commented out for initial experiment
+      # - ["bixbench-deepseek"]
+    group_titles:
+      - "GPT-4o"
+      - "Claude 3.5"
+      - "Claude 3.7"
+      # - "DeepSeek R1"
+    color_groups:
+      - "gpt4o"
+      - "claude35"
+      - "claude37"
+      # - "deepseek"
+    total_questions_per_run: 296
+    use_zero_shot_baselines: false
+    baseline_name_mappings: {}
+    random_baselines: []
