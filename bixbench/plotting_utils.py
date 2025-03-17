@@ -24,6 +24,7 @@ def majority_vote_accuracy_by_k(
     random_baselines: Optional[list[float]] = None,
     random_baselines_labels: Optional[list[str]] = None,
     results_dir: str = "bixbench_results",
+    save_to_root: bool = False,
 ) -> None:
     """
     Plot the accuracy of majority voting as a function of the number of votes (k).
@@ -34,6 +35,7 @@ def majority_vote_accuracy_by_k(
         random_baselines: List of accuracy values for random baseline models
         random_baselines_labels: Labels for the random baseline models
         results_dir: Directory to save results
+        save_to_root: If True, also save the figure to the root directory
 
     Returns:
         None: Saves the plot to disk and displays it
@@ -83,6 +85,8 @@ def majority_vote_accuracy_by_k(
     plt.legend(loc="upper left")
     plt.grid(alpha=0.3, visible=True)
     plt.savefig(f"{results_dir}/majority_vote_accuracy_{name}.png")
+    if save_to_root:
+        plt.savefig(f"majority_vote_accuracy_{name}.png")
     plt.show()
 
 
@@ -94,6 +98,7 @@ def plot_model_comparison(
     group_titles: Optional[list[str]] = None,
     random_baselines: Optional[list[float]] = None,
     results_dir: str = "bixbench_results",
+    save_to_root: bool = False,
 ) -> None:
     """
     Create a bar chart comparing model performance across different formats.
@@ -106,6 +111,7 @@ def plot_model_comparison(
         group_titles: Optional list of titles for each group
         random_baselines: Optional list of random baseline values for each group
         results_dir: Directory to save results
+        save_to_root: If True, also save the figure to the root directory
 
     Returns:
         None: Saves the plot to disk and displays it
@@ -140,6 +146,8 @@ def plot_model_comparison(
     plt.grid(visible=True, axis="y", linestyle="--", alpha=0.7)
     plt.tight_layout()
     plt.savefig(f"{results_dir}/bixbench_results_comparison.png")
+    if save_to_root:
+        plt.savefig("bixbench_results_comparison.png")
     plt.show()
 
 
@@ -257,6 +265,7 @@ def plot_simplified_comparison(
     group_titles: Optional[list[str]] = None,
     has_mcq: bool = False,
     results_dir: str = "bixbench_results",
+    save_to_root: bool = False,
 ) -> None:
     """
     Create a simplified bar chart comparing model performance.
@@ -267,6 +276,7 @@ def plot_simplified_comparison(
         group_titles: Optional titles for each group
         has_mcq: Whether the results include MCQ questions (to show random baselines)
         results_dir: Directory to save results
+        save_to_root: If True, also save the figure to the root directory
 
     Returns:
         None: Saves the plot to disk and displays it
@@ -327,4 +337,6 @@ def plot_simplified_comparison(
     # Save and show plot
     plt.tight_layout()
     plt.savefig(f"{results_dir}/model_comparison.png")
+    if save_to_root:
+        plt.savefig("model_comparison.png")
     plt.show()

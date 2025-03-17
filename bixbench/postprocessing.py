@@ -168,6 +168,7 @@ async def run_majority_vote(
             random_baselines=random_baselines,
             random_baselines_labels=random_baselines_labels,
             results_dir=results_dir,
+            save_to_root=True,
         )
 
     return run_results
@@ -236,6 +237,7 @@ async def compare_runs(
             group_titles=group_titles,
             random_baselines=random_baselines,
             results_dir=results_dir,
+            save_to_root=True,
         )
     else:
         # Use simplified plotting
@@ -245,6 +247,7 @@ async def compare_runs(
             group_titles=group_titles,
             has_mcq=any("mcq" in run for run in flat_run_names),
             results_dir=results_dir,
+            save_to_root=True,
         )
 
     return results
