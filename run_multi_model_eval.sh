@@ -40,7 +40,7 @@ run_model() {
     CONFIG_FILE=$2
     
     echo -e "${YELLOW}Running ${MODEL_NAME} evaluation...${NC}"
-    uv python bixbench/generate_trajectories.py --config_file "$CONFIG_FILE"
+    uv run python bixbench/generate_trajectories.py --config_file "$CONFIG_FILE"
     
     if [ $? -eq 0 ]; then
         echo -e "${GREEN}${MODEL_NAME} evaluation completed successfully${NC}"
@@ -69,11 +69,11 @@ run_model "Claude 3.7 MCQ" "bixbench/run_configuration/claude37_mcq_trajectories
 
 # Run postprocessing for open-ended questions
 echo -e "${YELLOW}Running postprocessing for open-ended questions...${NC}"
-uv python bixbench/postprocessing.py --config_file bixbench/run_configuration/multi_model_postprocessing.yaml
+uv run python bixbench/postprocessing.py --config_file bixbench/run_configuration/multi_model_postprocessing.yaml
 
 # Run postprocessing for MCQ
 echo -e "${YELLOW}Running postprocessing for multiple-choice questions...${NC}"
-uv python bixbench/postprocessing.py --config_file bixbench/run_configuration/multi_model_mcq_postprocessing.yaml
+uv run python bixbench/postprocessing.py --config_file bixbench/run_configuration/multi_model_mcq_postprocessing.yaml
 
 # Restore original configuration files
 mv bixbench/run_configuration/multi_model_postprocessing.yaml.bak bixbench/run_configuration/multi_model_postprocessing.yaml 2>/dev/null || true
