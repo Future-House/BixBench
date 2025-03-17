@@ -1,0 +1,44 @@
+results_dir: "bixbench_results/multi_model"
+data_path: "data/trajectories"  # This will look for all trajectories in subdirectories
+
+replicate_paper_results:
+  run: false
+  from_trajectories: true
+
+debug: true
+
+# Majority voting for MCQ questions (if you choose to run with MCQ mode)
+majority_vote:
+  run: true
+  k_value: 10
+  groups:
+    model_comparison:
+      - "bixbench-gpt4o"
+      - "bixbench-claude35"
+      - "bixbench-o3mini"
+      - "bixbench-claude37"
+      - "bixbench-deepseek"
+
+# Run comparison for model performance
+run_comparison:
+  run: true
+  run_name_groups:
+    - ["bixbench-gpt4o"]
+    - ["bixbench-claude35"]
+    - ["bixbench-claude37"]
+    # DeepSeek R1 commented out for initial experiment
+    # - ["bixbench-deepseek"]
+  group_titles:
+    - "GPT-4o"
+    - "Claude 3.5"
+    - "Claude 3.7"
+    # - "DeepSeek R1"
+  color_groups:
+    - "gpt4o"
+    - "claude35"
+    - "claude37"
+    # - "deepseek"
+  total_questions_per_run: 296  # This is the total number of questions in BixBench
+  use_zero_shot_baselines: false
+  baseline_name_mappings: {}
+  random_baselines: []
