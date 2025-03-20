@@ -52,3 +52,7 @@ MANIFEST
 *.spec
 
 data/
+
+# Run configuration folder - ignore everything except YAML files in root
+bixbench/run_configuration/*
+!bixbench/run_configuration/*.yaml
