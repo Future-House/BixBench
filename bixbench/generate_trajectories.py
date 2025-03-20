@@ -3,9 +3,15 @@ import ast
 import asyncio
 import json
 import logging
+import os
 import shutil
 from pathlib import Path
 from typing import Any
+
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 import datasets
 import litellm
@@ -83,34 +89,60 @@ class TrajectoryGenerator:
 
     async def process_capsule(self, capsule: dict[str, Any]) -> None:
         """
-        Process a single benchmark capsule by downloading and extracting necessary files.
-
-        Args:
-            capsule: Dictionary containing capsule information
+        Process a single capsule from the BixBench dataset.
         """
-        zip_filename = capsule["data_folder"]
-        extract_dir = self.config.local_data_folder / zip_filename.replace(".zip", "")
-        zip_path = self.config.local_data_folder / zip_filename
+        zip_filename = f"CapsuleFolder-{capsule['uuid']}.zip"
+        zip_path = Path(self.config.local_data_folder) / zip_filename
+        extract_dir = Path(self.config.local_data_folder) / "capsules" / f"CapsuleFolder-{capsule['uuid']}"
 
-        # Check if capsule folder exists and is non-empty
-        if extract_dir.exists() and any(extract_dir.iterdir()):
-            logger.debug(
-                "Capsule folder %s already exists and is non-empty", extract_dir.name
-            )
+        # If the extraction directory already exists, we don't need to download or extract again
+        if extract_dir.exists():
+            logger.info(f"Capsule {zip_filename} already extracted, skipping download.")
             capsule["local_data_folder"] = extract_dir
             return
 
-        # Download and process if not already present
-        await asyncio.to_thread(
-            hf_hub_download,
-            repo_id=self.config.paths.hf_repo_id,
-            filename=zip_filename,
-            local_dir=self.config.local_data_folder,
-            repo_type="dataset",
-        )
+        # Maximum number of download attempts
+        max_attempts = 5
+        attempt = 0
+        download_success = False
 
-        await asyncio.to_thread(self._extract_and_process_files, zip_path, extract_dir)
-        capsule["local_data_folder"] = extract_dir
+        while attempt < max_attempts and not download_success:
+            attempt += 1
+            try:
+                # Download with force_download to bypass consistency checks
+                await asyncio.to_thread(
+                    hf_hub_download,
+                    repo_id=self.config.paths.hf_repo_id,
+                    filename=zip_filename,
+                    local_dir=self.config.local_data_folder,
+                    repo_type="dataset",
+                    force_download=True,
+                )
+                download_success = True
+                logger.info(f"Successfully downloaded {zip_filename} on attempt {attempt}")
+            except Exception as e:
+                if attempt < max_attempts:
+                    logger.warning(
+                        f"Download attempt {attempt} for {zip_filename} failed: {str(e)}. Retrying..."
+                    )
+                    # Wait before retry (exponential backoff)
+                    await asyncio.sleep(2 ** attempt)
+                else:
+                    logger.error(
+                        f"All download attempts for {zip_filename} failed after {max_attempts} tries: {str(e)}"
+                    )
+                    raise
+
+        if download_success:
+            try:
+                await asyncio.to_thread(self._extract_and_process_files, zip_path, extract_dir)
+                capsule["local_data_folder"] = extract_dir
+            except Exception as e:
+                logger.error(f"Error extracting {zip_filename}: {str(e)}")
+                # Clean up potentially corrupted extraction
+                if extract_dir.exists():
+                    shutil.rmtree(extract_dir)
+                raise
 
     async def load_bixbench(self) -> list[dict[str, Any]]:
         """
@@ -122,6 +154,20 @@ class TrajectoryGenerator:
         bixbench = datasets.load_dataset(
             self.config.paths.hf_repo_id, split="train"
         ).to_list()
+
+        # Apply mini mode if configured (limit number of problems)
+        if self.config.mini_mode and self.config.max_problems is not None:
+            logger.info(f"Running in mini mode with {self.config.max_problems} problems")
+            # Make sure we have a diverse set of problems by choosing from different indices
+            total_problems = len(bixbench)
+            step_size = max(1, total_problems // self.config.max_problems)
+            indices = range(0, total_problems, step_size)[:self.config.max_problems]
+            bixbench = [bixbench[i] for i in indices]
+            logger.info(f"Selected {len(bixbench)} problems from a total of {total_problems}")
+            
+            # Print which problems were selected
+            selected_ids = [capsule.get("short_id", capsule.get("uuid", "unknown")) for capsule in bixbench]
+            logger.info(f"Selected problems: {selected_ids}")
 
         # Process all capsules concurrently
         tasks = [self.process_capsule(capsule) for capsule in bixbench]
@@ -137,34 +183,54 @@ class TrajectoryGenerator:
             zip_path: Path to the zip file
             extract_dir: Directory to extract files to
         """
+        # Ensure parent directories exist
+        extract_dir.parent.mkdir(parents=True, exist_ok=True)
+        
         # Extract the zip file
         shutil.unpack_archive(zip_path, extract_dir)
 
-        # Get the Data folder path
-        data_folder = next(p for p in extract_dir.iterdir() if "Data" in p.name)
-
-        # Move contents of Data folder to parent directory
-        for item in data_folder.iterdir():
-            shutil.move(str(item), str(extract_dir / item.name))
-
-        # Remove the Data folder
-        shutil.rmtree(data_folder)
+        # Check for nested folder structure (common in HF downloads)
+        capsule_folder_name = extract_dir.name
+        nested_capsule_folder = extract_dir / capsule_folder_name
+        
+        # If we have a nested structure like CapsuleFolder-X/CapsuleFolder-X/ then use the contents
+        # of the inner folder
+        if nested_capsule_folder.exists() and nested_capsule_folder.is_dir():
+            # Move all contents from nested folder to the main folder
+            for item in nested_capsule_folder.iterdir():
+                # Avoid moving __MACOSX folders
+                if '__MACOSX' in str(item):
+                    continue
+                dest_path = extract_dir / item.name
+                if not dest_path.exists():  # Avoid overwriting existing files
+                    shutil.move(str(item), str(dest_path))
+            # Remove the now-empty nested folder
+            shutil.rmtree(nested_capsule_folder)
+        
+        # Find and process the Data folder if it exists
+        data_folders = [p for p in extract_dir.iterdir() if "Data" in p.name and p.is_dir()]
+        for data_folder in data_folders:
+            # Move contents of Data folder to parent directory
+            for item in data_folder.iterdir():
+                dest_path = extract_dir / item.name
+                if not dest_path.exists():  # Avoid overwriting existing files
+                    shutil.move(str(item), str(dest_path))
+            # Remove the Data folder
+            shutil.rmtree(data_folder)
 
         # Safely remove Notebook folder if it exists
-        try:
-            notebook_folder = next(
-                p
-                for p in extract_dir.iterdir()
-                if "Notebook" in p.name and p.is_dir()  # Only match directories
-            )
+        notebook_folders = [p for p in extract_dir.iterdir() if "Notebook" in p.name and p.is_dir()]
+        for notebook_folder in notebook_folders:
             shutil.rmtree(notebook_folder)
-        except StopIteration:
-            # No Notebook folder found, that's okay
-            pass
 
         # Remove any .ipynb files in the extract directory
         for ipynb_file in extract_dir.glob("*.ipynb"):
             ipynb_file.unlink()
+            
+        # Remove any __MACOSX folders
+        for macosx_folder in extract_dir.glob("__MACOSX*"):
+            if macosx_folder.is_dir():
+                shutil.rmtree(macosx_folder)
 
         # Remove the zip file
         zip_path.unlink()
@@ -238,9 +304,24 @@ class TrajectoryGenerator:
         answer = {i.question_id: i.ideal_answer for i in processed_questions}
         work_dir = (self.config.local_workspace_dir / capsule["uuid"]).absolute()
         work_dir.mkdir(parents=True, exist_ok=True)
-        local_capsule_data_path = self.config.local_data_folder / capsule[
-            "data_folder"
-        ].replace(".zip", "")
+        
+        # Check if local_data_folder exists in capsule (added during process_capsule)
+        if "local_data_folder" in capsule and capsule["local_data_folder"].exists():
+            local_capsule_data_path = capsule["local_data_folder"]
+        else:
+            # Fall back to constructing the path
+            local_capsule_data_path = self.config.local_data_folder / "capsules" / f"CapsuleFolder-{capsule['uuid']}"
+            
+            # If that doesn't exist, try the traditional path
+            if not local_capsule_data_path.exists():
+                local_capsule_data_path = self.config.local_data_folder / capsule["data_folder"].replace(".zip", "")
+                
+        # Verify the path exists before trying to iterate
+        if not local_capsule_data_path.exists():
+            raise FileNotFoundError(f"Could not find capsule data at {local_capsule_data_path}")
+            
+        logger.info(f"Using capsule data from {local_capsule_data_path}")
+        
         # Copy all files from data folder to work directory
         for item in local_capsule_data_path.iterdir():
             if item.is_file():
@@ -401,5 +482,5 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    generator = TrajectoryGenerator(args.config)
+    generator = TrajectoryGenerator(args.config_file)
     asyncio.run(generator.run())

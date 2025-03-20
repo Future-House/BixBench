@@ -118,6 +118,8 @@ class BixbenchConfig(BaseModel):
     capsule: CapsuleSettings
     paths: PathSettings
     postprocessing: Optional[PostProcessingSettings] = None
+    mini_mode: bool = False  # Flag for mini mode (runs only 10 examples)
+    max_problems: int = None  # Limit number of problems for mini mode
 
     # Computed fields that come from processing the raw config
     agent_config: Optional[AgentConfig] = None
@@ -189,6 +191,7 @@ class PostprocessingConfig(BaseModel):
     data_path: str = "data/trajectories/"
     results_dir: str = "bixbench_results"
     debug: bool = False
+    mini_mode: bool = False  # Flag for mini mode (processes only 10 questions)
 
     replicate_paper_results: PaperReplicationConfig = Field(
         default_factory=PaperReplicationConfig

@@ -53,13 +53,21 @@ async def send_message_to_llm(
     Returns:
         The response from the language model
     """
+    # Set appropriate max_tokens based on model to avoid output token rate limits
+    max_tokens = 4000 if "claude" in model.lower() else 8000
+    
     async with sem:
-        return await litellm.acompletion(model=model, messages=message)
+        return await litellm.acompletion(
+            model=model, 
+            messages=message,
+            max_tokens=max_tokens
+        )
 
 
 models = {
     "4o": "gpt-4o",
-    "claude": "claude-3-5-sonnet-20241022",
+    "claude35": "claude-3-5-sonnet-20241022",
+    "claude37": "claude-3-7-sonnet-20250219",
 }
 
 
@@ -103,19 +111,33 @@ async def run_eval_loop(
     eval_df["llm_answer"] = eval_df["llm_answer"].astype("object")
 
     # Create tasks for all models to run concurrently
-    tasks = [
-        process_model_batch(eval_df, model_key, model_name, max_concurrent)
-        for model_key, model_name in models.items()
-    ]
+    tasks = []
+    for model_key, model_name in models.items():
+        # Check if there are any rows for this model
+        if eval_df.run_name.str.contains(model_key).any():
+            # Determine appropriate concurrency for each model
+            model_specific_concurrency = min(
+                max_concurrent, 
+                20 if "claude" in model_name.lower() else max_concurrent
+            )
+            tasks.append(
+                process_model_batch(eval_df, model_key, model_name, model_specific_concurrency)
+            )
+    
+    if not tasks:
+        print("No matching model keys found in the dataframe")
+        return eval_df
 
     # Run all model processing tasks concurrently
     results = await asyncio.gather(*tasks)
 
     # Update the dataframe with results from all models
     for model_key, model_results in results:
-        eval_df.loc[eval_df.run_name.str.contains(model_key), "llm_answer"] = (
-            model_results
-        )
+        mask = eval_df.run_name.str.contains(model_key)
+        if mask.any():
+            eval_df.loc[mask, "llm_answer"] = model_results
+        else:
+            print(f"No matches found for model key: {model_key}")
 
     return eval_df
 
@@ -123,7 +145,8 @@ async def run_eval_loop(
 async def process_single(prompt: str, model: str, sem: Semaphore) -> Optional[str]:
     """Process a single prompt with a language model with retry logic.
 
-    Makes up to 5 attempts to get a response from the model.
+    Makes up to 5 attempts to get a response from the model, with
+    exponential backoff specifically for rate limit errors.
 
     Args:
         prompt: The prompt to send to the model
@@ -137,16 +160,43 @@ async def process_single(prompt: str, model: str, sem: Semaphore) -> Optional[st
         {"role": "user", "content": prompt},
     ]
 
-    MAX_RETRIES = 4
-    for attempt in range(5):
+    MAX_RETRIES = 6
+    for attempt in range(7):  # 7 attempts total (1 initial + 6 retries)
         try:
             res = await send_message_to_llm(messages, model, sem)
             return res.choices[0].message.content
         except Exception as e:
-            if attempt < MAX_RETRIES:  # Don't print on last attempt
-                print(f"Attempt {attempt + 1} failed: {e}")
+            error_str = str(e).lower()
+            
+            # Enhanced rate limit error detection
+            rate_limit_terms = [
+                "rate limit", "ratelimit", "too many requests", "429", 
+                "capacity", "quota", "exceeded", "throttl", "tps limit", 
+                "token rate", "too fast", "server busy", "overloaded"
+            ]
+            is_rate_limit = any(term in error_str for term in rate_limit_terms)
+            
+            if attempt < MAX_RETRIES:
+                # Calculate backoff time - exponential for rate limits, shorter for other errors
+                if is_rate_limit:
+                    # Enhanced exponential backoff with jitter for rate limits
+                    # Start with 3s, then 9s, 27s, 81s, 243s, 729s for Claude models
+                    is_claude = "claude" in model.lower()
+                    base_delay = 3 if is_claude else 2
+                    backoff_time = (base_delay ** (attempt + 1)) + (random.random() * 1.0)
+                    print(f"Rate limit error on attempt {attempt + 1} for {model}: {e}")
+                    print(f"Backing off for {backoff_time:.2f} seconds...")
+                else:
+                    # Shorter delay for other errors
+                    backoff_time = 0.5 * (attempt + 1)
+                    print(f"Attempt {attempt + 1} failed (non-rate limit) for {model}: {e}")
+                    print(f"Retrying in {backoff_time:.2f} seconds...")
+                
+                # Wait before retry
+                await asyncio.sleep(backoff_time)
                 continue
-            print(f"All 5 attempts failed. Last error: {e}")
+            
+            print(f"All 7 attempts failed. Last error: {e}")
             return None
     return None
 
@@ -178,6 +228,9 @@ async def process_batch(
     prompts: list[str], model: str, max_concurrent: int = 5
 ) -> list[Optional[str]]:
     """Process a batch of prompts concurrently with rate limiting and progress tracking.
+    
+    Sets appropriate concurrency based on the model being used, with defaults
+    that respect API rate limits.
 
     Args:
         prompts: List of prompts to process
@@ -187,7 +240,19 @@ async def process_batch(
     Returns:
         List of results from processing each prompt (strings or None values)
     """
-    sem = Semaphore(max_concurrent)
+    # Model-specific concurrency limits based on known API limits
+    model_concurrency = {
+        "gpt-4o": 25,  # GPT-4o can handle 500 RPM, so ~25 concurrent with safety margin
+        "claude-3-5-sonnet-20241022": 30,  # Claude 3.5 with 2000 RPM, 160k input tokens/min
+        "claude-3-7-sonnet-20250219": 30,  # Claude 3.7 with 2000 RPM, 80k input tokens/min
+    }
+    
+    # Choose the lower of the user-specified max_concurrent or the model-specific limit
+    model_max = model_concurrency.get(model, 5)  # Default to 5 for unknown models
+    effective_max = min(max_concurrent, model_max)
+    
+    print(f"Processing batch with {effective_max} concurrent requests for model {model}")
+    sem = Semaphore(effective_max)
 
     # Setup progress bar
     pbar = tqdm(total=len(prompts), desc=f"Processing {model}")
@@ -196,7 +261,9 @@ async def process_batch(
 
     try:
         # Process tasks
-        return await asyncio.gather(*tasks)
+        results = await asyncio.gather(*tasks)
+        print(f"Batch processing completed for {model} with {len([r for r in results if r is not None])}/{len(prompts)} successful responses")
+        return results
     finally:
         # Close the progress bar
         pbar.close()
@@ -463,9 +530,17 @@ def xml_extract(text: str) -> str:
     Returns:
         The extracted answer letter or 'Z' if no match is found
     """
-    match = re.search(r"<answer>([A-Z])</answer>", text)
-    if match:
-        return match.group(1)
+    if text is None:
+        return "Z"  # Return default for None inputs
+        
+    try:
+        match = re.search(r"<answer>([A-Z])</answer>", text)
+        if match:
+            return match.group(1)
+    except TypeError:
+        # Handle any other type errors that might occur
+        pass
+        
     return "Z"
 
 
@@ -515,17 +590,37 @@ def run_majority_voting(
     Returns:
         Tuple of (k_values, mean accuracies, standard deviations)
     """
-    # Fix: Calculate majority predictions first
-    majority_predictions = grouped_df["llm_answer"].apply(majority_vote)
+    # Check if we have enough data for meaningful majority voting
+    if len(grouped_df) < 2:
+        print("Insufficient data for majority voting (less than 2 questions)")
+        return [], [], []
+        
+    # Check if we have enough model answers for voting
+    if all(len(answers) < 2 for answers in grouped_df["llm_answer"]):
+        print("Insufficient model answers for majority voting (less than 2 answers per question)")
+        return [], [], []
+    
+    # Check if we have any valid k values that are less than the number of answers
+    max_answers = max(len(answers) for answers in grouped_df["llm_answer"])
+    valid_k_values = [k for k in k_values if k <= max_answers]
+    
+    if not valid_k_values:
+        print(f"No valid k values for majority voting (max answers: {max_answers})")
+        return [], [], []
+    
+    # Calculate majority predictions for the maximum valid k value
+    majority_predictions = grouped_df["llm_answer"].apply(
+        lambda x: majority_vote(x, k=min(max_answers, max(valid_k_values, default=1)))
+    )
 
-    # Calculate accuracy
+    # Calculate and display overall accuracy
     accuracy = (majority_predictions == grouped_df["correct_letter"]).mean()
     print(f"Majority voting accuracy: {accuracy:.2%}")
 
     # Run multiple trials for different k values
-    accuracies = {k: [] for k in k_values}
+    accuracies = {k: [] for k in valid_k_values}
 
-    for k in k_values:
+    for k in valid_k_values:
         for _ in range(n_trials):
             # Apply majority voting with current k to each row
             predictions = grouped_df["llm_answer"].apply(
@@ -537,9 +632,9 @@ def run_majority_voting(
             accuracies[k].append(acc)
 
     # Calculate means and standard deviations
-    means = [np.mean(accuracies[k]) for k in k_values]
-    stds = [np.std(accuracies[k]) for k in k_values]
-    return k_values, means, stds
+    means = [np.mean(accuracies[k]) for k in valid_k_values]
+    stds = [np.std(accuracies[k]) for k in valid_k_values]
+    return valid_k_values, means, stds
 
 
 def wilson_ci(p: float, n: int, z: float = 1.96) -> tuple[float, float]:
@@ -556,10 +651,30 @@ def wilson_ci(p: float, n: int, z: float = 1.96) -> tuple[float, float]:
     Returns:
         Tuple of (lower bound, upper bound) of the confidence interval
     """
+    # Return simple estimate if n is too small
+    if n < 5:
+        return p, p
+        
+    # Ensure inputs are valid to avoid NaN results
+    p = max(0.0, min(1.0, p))  # Ensure p is between 0 and 1
+    n = max(1, n)              # Ensure n is at least 1
+    
     denominator = 1 + z**2 / n
     center = (p + z**2 / (2 * n)) / denominator
-    spread = z * np.sqrt(p * (1 - p) / n + z**2 / (4 * n**2)) / denominator
-    return center - spread, center + spread
+    
+    # Handle edge cases to avoid sqrt of negative numbers
+    sqrt_term = max(0, p * (1 - p) / n + z**2 / (4 * n**2))
+    spread = z * np.sqrt(sqrt_term) / denominator
+    
+    # Return bounds, ensuring they stay in [0,1]
+    lower = max(0.0, center - spread)
+    upper = min(1.0, center + spread)
+    
+    # Add debug message for unusual CI behavior
+    if lower > p or upper < p:
+        print(f"Warning: Wilson CI calculation produced bounds that don't contain the proportion: p={p}, n={n}, CI=[{lower}, {upper}]")
+        
+    return lower, upper
 
 
 def calculate_results(
@@ -591,10 +706,17 @@ def calculate_results(
                 if total_questions_per_run is not None
                 else len(scores)
             )
-            ci_low, ci_high = wilson_ci(mean, n)
+            
+            # Handle the case where mean is 0 or very small with no correct answers
+            if mean <= 0 or np.isnan(mean):
+                ci_low, ci_high = 0.0, 0.0
+                print(f"Warning: Zero or NaN mean for {run}, setting CI to [0,0]")
+            else:
+                ci_low, ci_high = wilson_ci(mean, n)
+                
             results[run] = {
-                "mean": mean,
-                "ci_low": ci_low,
-                "ci_high": ci_high,
+                "mean": float(mean),  # Convert numpy float64 to Python float
+                "ci_low": float(ci_low),
+                "ci_high": float(ci_high),
             }
     return results
