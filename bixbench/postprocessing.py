@@ -352,8 +352,59 @@ if __name__ == "__main__":
         "--max_concurrent", type=int, default=5, 
         help="Maximum number of concurrent API calls to make (default: 5)"
     )
+    parser.add_argument(
+        "--use-new-structure", action="store_true",
+        help="Use the new folder structure (runs/run_id/...)"
+    )
+    parser.add_argument(
+        "--run-id", type=str,
+        help="Run ID for the new folder structure (only used with --use-new-structure)"
+    )
 
     args = parser.parse_args()
-
-    # Run main function with the config file and max_concurrent parameter
-    asyncio.run(main(args.config_file, args.max_concurrent))
+    
+    # If using new structure, we need to modify the config after loading
+    async def main_with_new_structure():
+        # Load configuration
+        with open(args.config_file, encoding="utf-8") as f:
+            config_dict = yaml.safe_load(f)
+        
+        # Update config for new structure if requested
+        if args.use_new_structure:
+            config_dict["use_new_structure"] = True
+            if args.run_id:
+                config_dict["run_id"] = args.run_id
+        
+        # Parse configuration with Pydantic
+        config = PostprocessingConfig.model_validate(config_dict)
+        
+        # Set up results directory
+        results_dir = config.results_dir
+        os.makedirs(results_dir, exist_ok=True)
+        
+        # Load or process data based on configuration
+        eval_df = await load_or_process_data(config, max_concurrent=args.max_concurrent)
+        
+        # Save intermediary processed data for debugging
+        if config.debug | (config.replicate_paper_results.from_trajectories):
+            eval_df.to_csv(f"{results_dir}/eval_df_new.csv", index=False)
+        
+        # Run majority vote if configured
+        if config.majority_vote.run:
+            await run_majority_vote(eval_df, config.majority_vote, results_dir)
+        
+        # Run comparison if configured
+        if config.run_comparison.run:
+            await compare_runs(
+                eval_df,
+                config.run_comparison,
+                results_dir,
+                config.replicate_paper_results.run,
+            )
+    
+    # Run with support for new structure
+    if args.use_new_structure:
+        asyncio.run(main_with_new_structure())
+    else:
+        # Run main function with the config file and max_concurrent parameter
+        asyncio.run(main(args.config_file, args.max_concurrent))

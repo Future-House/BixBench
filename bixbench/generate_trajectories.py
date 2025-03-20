@@ -480,7 +480,35 @@ if __name__ == "__main__":
         default=str(DEFAULT_CONFIG_PATH),
         help="Path to the configuration YAML file",
     )
+    parser.add_argument(
+        "--use-new-structure",
+        action="store_true",
+        help="Use the new folder structure (runs/run_id/...)",
+    )
+    parser.add_argument(
+        "--run-id",
+        type=str,
+        help="Run ID for the new folder structure (only used with --use-new-structure)",
+    )
     args = parser.parse_args()
 
+    # Create the generator with the specified config file
     generator = TrajectoryGenerator(args.config_file)
+    
+    # If using new structure, update the config
+    if args.use_new_structure:
+        generator.config.use_new_structure = True
+        if args.run_id:
+            generator.config.run_id = args.run_id
+            # Ensure paths are updated
+            generator.config.paths.use_new_structure = True
+            generator.config.paths.run_id = args.run_id
+            
+        # Re-run validation to update paths
+        generator.config = generator.config.model_copy(update={
+            "use_new_structure": True,
+            "run_id": generator.config.run_id
+        })
+
+    # Run the generator
     asyncio.run(generator.run())

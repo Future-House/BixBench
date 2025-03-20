@@ -1,5 +1,12 @@
 #!/bin/bash
-# Script to run BixBench evaluations on multiple models
+# Script to run BixBench evaluations on multiple models with new folder structure
+
+# Determine the script directory and virtual environment Python
+SCRIPT_DIR="$(dirname "$0")"
+VENV_PYTHON="${SCRIPT_DIR}/.venv/bin/python"
+
+# Set up the Python path to find the bixbench module
+export PYTHONPATH="${SCRIPT_DIR}:${PYTHONPATH}"
 
 # Set up colors for output
 GREEN='\033[0;32m'
@@ -17,7 +24,9 @@ RUN_CLAUDE37=true
 RUN_DEEPSEEK=false
 MAX_CONCURRENT=20  # Default concurrency level for API calls
 RUN_MINI=false     # Mini mode for quick testing with only 10 questions per type
-DOCKER_IMAGE="aviary-notebook-env"  # Default Docker image for Aviary
+DOCKER_IMAGE="aviary-notebook-env-fixed"  # Default Docker image for Aviary
+# Export the full Docker image name for fhda to use
+export NB_ENVIRONMENT_DOCKER_IMAGE="futurehouse/bixbench:${DOCKER_IMAGE}"
 
 # Display help function
 show_help() {
@@ -35,7 +44,7 @@ show_help() {
     echo "  --models=[list]         Comma-separated list of models to run (gpt4o,claude35,claude37,deepseek)"
     echo "  --concurrency=[num]     Set maximum concurrent API requests (default: 20)"
     echo "  --mini                  Run in mini mode with only 10 questions per type (fast testing)"
-    echo "  --docker-image=[name]   Specify Docker image for Aviary (default: aviary-notebook-env)"
+    echo "  --docker-image=[name]   Specify Docker image for Aviary (default: aviary-notebook-env-fixed)"
     echo ""
     echo "Examples:"
     echo "  $0 --mcq-only --claude35-only  # Run only Claude 3.5 MCQ evaluations"
@@ -86,6 +95,8 @@ while [[ "$#" -gt 0 ]]; do
             ;;
         --docker-image=*)
             DOCKER_IMAGE="${1#*=}"
+            # Update the environment variable for fhda when image is specified
+            export NB_ENVIRONMENT_DOCKER_IMAGE="futurehouse/bixbench:${DOCKER_IMAGE}"
             ;;
         --concurrency=*)
             MAX_CONCURRENT="${1#*=}"
@@ -164,51 +175,48 @@ fi
 RUN_ID="${RUN_NAME}_${DATETIME}"
 echo -e "${GREEN}Using run ID: ${RUN_ID}${NC}"
 
-# Create necessary directories
+# Create necessary directories with the new structure
 echo -e "${YELLOW}Creating run directories for ${RUN_ID}...${NC}"
 
-# Base directories
-mkdir -p "data/trajectories/${RUN_ID}"
-mkdir -p "bixbench_results/${RUN_ID}/multi_model"
-mkdir -p "bixbench_results/${RUN_ID}/multi_model_mcq"
+# Base directories using the new structure
+RUNS_DIR="runs/${RUN_ID}"
+mkdir -p "${RUNS_DIR}/config"
+mkdir -p "${RUNS_DIR}/data/trajectories"
+mkdir -p "${RUNS_DIR}/results/multi_model"
+mkdir -p "${RUNS_DIR}/results/multi_model_mcq"
 
 # Create model-specific subdirectories for selected models only
 if [ "$RUN_GPT4O" = true ]; then
     echo -e "${BLUE}Creating GPT-4o directories${NC}"
-    mkdir -p "data/trajectories/${RUN_ID}/gpt4o"
+    mkdir -p "${RUNS_DIR}/data/trajectories/gpt4o"
     if [ "$RUN_MCQ" = true ]; then
-        mkdir -p "data/trajectories/${RUN_ID}/gpt4o_mcq"
+        mkdir -p "${RUNS_DIR}/data/trajectories/gpt4o_mcq"
     fi
 fi
 
 if [ "$RUN_CLAUDE35" = true ]; then
     echo -e "${BLUE}Creating Claude 3.5 directories${NC}"
-    mkdir -p "data/trajectories/${RUN_ID}/claude35"
+    mkdir -p "${RUNS_DIR}/data/trajectories/claude35"
     if [ "$RUN_MCQ" = true ]; then
-        mkdir -p "data/trajectories/${RUN_ID}/claude35_mcq"
+        mkdir -p "${RUNS_DIR}/data/trajectories/claude35_mcq"
     fi
 fi
 
 if [ "$RUN_CLAUDE37" = true ]; then
     echo -e "${BLUE}Creating Claude 3.7 directories${NC}"
-    mkdir -p "data/trajectories/${RUN_ID}/claude37"
+    mkdir -p "${RUNS_DIR}/data/trajectories/claude37"
     if [ "$RUN_MCQ" = true ]; then
-        mkdir -p "data/trajectories/${RUN_ID}/claude37_mcq"
+        mkdir -p "${RUNS_DIR}/data/trajectories/claude37_mcq"
     fi
 fi
 
 if [ "$RUN_DEEPSEEK" = true ]; then
     echo -e "${BLUE}Creating DeepSeek directories${NC}"
-    mkdir -p "data/trajectories/${RUN_ID}/deepseek"
+    mkdir -p "${RUNS_DIR}/data/trajectories/deepseek"
     if [ "$RUN_MCQ" = true ]; then
-        mkdir -p "data/trajectories/${RUN_ID}/deepseek_mcq"
+        mkdir -p "${RUNS_DIR}/data/trajectories/deepseek_mcq"
     fi
 fi
-
-# Create dynamic configuration directory for this run
-RUN_CONFIG_DIR="bixbench/run_configuration/run_${RUN_ID}"
-mkdir -p "$RUN_CONFIG_DIR"
-echo -e "${YELLOW}Creating dynamic configuration files in ${RUN_CONFIG_DIR}${NC}"
 
 # Function to generate model-specific configuration
 generate_model_config() {
@@ -223,11 +231,11 @@ generate_model_config() {
     if [ "$MODE" = "mcq" ]; then
         RUN_NAME="bixbench-${MODEL_ID}-mcq"
         SYSTEM_PROMPT="CAPSULE_SYSTEM_PROMPT_MCQ"
-        TRAJECTORY_DIR="data/trajectories/${RUN_ID}/${MODEL_ID}_mcq"
+        TRAJECTORY_DIR="${RUNS_DIR}/data/trajectories/${MODEL_ID}_mcq"
     else
         RUN_NAME="bixbench-${MODEL_ID}"
         SYSTEM_PROMPT="CAPSULE_SYSTEM_PROMPT_OPEN"
-        TRAJECTORY_DIR="data/trajectories/${RUN_ID}/${MODEL_ID}"
+        TRAJECTORY_DIR="${RUNS_DIR}/data/trajectories/${MODEL_ID}"
     fi
     
     # Set mini mode batch size if needed
@@ -235,8 +243,8 @@ generate_model_config() {
         BATCH_SIZE=4
     fi
     
-    # Create the configuration file
-    CONFIG_FILE="${RUN_CONFIG_DIR}/${MODEL_ID}_${MODE}_trajectories.yaml"
+    # Create the configuration file in the new location
+    CONFIG_FILE="${RUNS_DIR}/config/${MODEL_ID}_${MODE}_trajectories.yaml"
     
     echo -e "${BLUE}Generating configuration for ${MODEL_NAME} (${MODE} mode)${NC}"
     
@@ -298,7 +306,8 @@ EOL
     fi
     
     echo -e "${GREEN}Created configuration file: ${CONFIG_FILE}${NC}"
-    return "$CONFIG_FILE"
+    # Don't try to return a string in bash script
+    # return "$CONFIG_FILE"
 }
 
 # Generate model-specific configurations for selected models
@@ -344,8 +353,8 @@ run_model() {
     MODEL_ID=$2
     MODE=$3  # "open" or "mcq"
     
-    # Use our dynamically generated config files
-    CONFIG_FILE="${RUN_CONFIG_DIR}/${MODEL_ID}_${MODE}_trajectories.yaml"
+    # Use our dynamically generated config files with the new path
+    CONFIG_FILE="${RUNS_DIR}/config/${MODEL_ID}_${MODE}_trajectories.yaml"
     
     # Add mini indicator to model name if in mini mode
     if [ "$RUN_MINI" = true ]; then
@@ -353,7 +362,18 @@ run_model() {
     fi
     
     echo -e "${YELLOW}Running ${MODEL_NAME} evaluation...${NC}"
-    uv run python bixbench/generate_trajectories.py --config_file "$CONFIG_FILE"
+    # Use the new structure flags for the Python script
+    # Use the correct path for the Python script with the virtual environment and proper PYTHONPATH
+    if [ -f "${SCRIPT_DIR}/bixbench/generate_trajectories.py" ]; then
+        (cd "$SCRIPT_DIR" && "$VENV_PYTHON" "bixbench/generate_trajectories.py" --config_file "$CONFIG_FILE" --use-new-structure --run-id "$RUN_ID")
+    elif [ -f "bixbench/generate_trajectories.py" ]; then
+        (cd . && "$VENV_PYTHON" "bixbench/generate_trajectories.py" --config_file "$CONFIG_FILE" --use-new-structure --run-id "$RUN_ID")
+    elif [ -f "BixBench/bixbench/generate_trajectories.py" ]; then
+        (cd "BixBench" && "$VENV_PYTHON" "bixbench/generate_trajectories.py" --config_file "$CONFIG_FILE" --use-new-structure --run-id "$RUN_ID")
+    else
+        echo -e "${RED}Cannot find generate_trajectories.py in any of the expected directories${NC}"
+        exit 1
+    fi
     
     if [ $? -eq 0 ]; then
         echo -e "${GREEN}${MODEL_NAME} evaluation completed successfully${NC}"
@@ -412,12 +432,12 @@ create_filtered_config() {
     # Initialize an empty config file
     echo -e "${BLUE}Creating completely new filtered config for active models only${NC}"
     
-    # Create the base configuration with only the relevant paths
+    # Create the base configuration with the new path structure
     cat > "$OUTPUT_CONFIG" << EOL
 # Generated filtered config for BixBench postprocessing - $(date)
 # This is a clean configuration that only includes selected models
-results_dir: "bixbench_results/${RUN_ID}/$(if [ "$IS_MCQ" = "true" ]; then echo "multi_model_mcq"; else echo "multi_model"; fi)"
-data_path: "data/trajectories/${RUN_ID}"
+results_dir: "${RUNS_DIR}/results/$(if [ "$IS_MCQ" = "true" ]; then echo "multi_model_mcq"; else echo "multi_model"; fi)"
+data_path: "${RUNS_DIR}/data/trajectories"
 debug: true
 
 EOL
@@ -554,12 +574,20 @@ if [ "$RUN_OPENENDED" = true ]; then
     echo -e "${YELLOW}Running postprocessing for open-ended questions...${NC}"
     
     # Create a filtered config for selected models (open-ended)
-    FILTERED_CONFIG="bixbench/run_configuration/filtered_multi_model_postprocessing.yaml"
+    FILTERED_CONFIG="${RUNS_DIR}/config/filtered_multi_model_postprocessing.yaml"
     create_filtered_config "$FILTERED_CONFIG" "false"
     
-    # Add the --max_concurrent flag to limit API calls
-    # Use higher default concurrency (20) which will be automatically adjusted by model
-    uv run python bixbench/postprocessing.py "$FILTERED_CONFIG" --max_concurrent ${MAX_CONCURRENT:-20}
+    # Use the correct path for the Python script with the virtual environment and proper PYTHONPATH
+    if [ -f "${SCRIPT_DIR}/bixbench/postprocessing.py" ]; then
+        (cd "$SCRIPT_DIR" && "$VENV_PYTHON" "bixbench/postprocessing.py" "$FILTERED_CONFIG" --max_concurrent ${MAX_CONCURRENT:-20} --use-new-structure --run-id "$RUN_ID")
+    elif [ -f "bixbench/postprocessing.py" ]; then
+        (cd . && "$VENV_PYTHON" "bixbench/postprocessing.py" "$FILTERED_CONFIG" --max_concurrent ${MAX_CONCURRENT:-20} --use-new-structure --run-id "$RUN_ID")
+    elif [ -f "BixBench/bixbench/postprocessing.py" ]; then
+        (cd "BixBench" && "$VENV_PYTHON" "bixbench/postprocessing.py" "$FILTERED_CONFIG" --max_concurrent ${MAX_CONCURRENT:-20} --use-new-structure --run-id "$RUN_ID")
+    else
+        echo -e "${RED}Cannot find postprocessing.py in any of the expected directories${NC}"
+        exit 1
+    fi
     
     # Cleanup
     rm "$FILTERED_CONFIG" 2>/dev/null || true
@@ -570,40 +598,41 @@ if [ "$RUN_MCQ" = true ]; then
     echo -e "${YELLOW}Running postprocessing for multiple-choice questions...${NC}"
     
     # Create a filtered config for selected models (MCQ)
-    FILTERED_CONFIG="bixbench/run_configuration/filtered_multi_model_mcq_postprocessing.yaml"
+    FILTERED_CONFIG="${RUNS_DIR}/config/filtered_multi_model_mcq_postprocessing.yaml"
     create_filtered_config "$FILTERED_CONFIG" "true"
     
-    # Add the --max_concurrent flag to limit API calls
-    # Use higher default concurrency (20) which will be automatically adjusted by model
-    uv run python bixbench/postprocessing.py "$FILTERED_CONFIG" --max_concurrent ${MAX_CONCURRENT:-20}
+    # Use the correct path for the Python script with the virtual environment and proper PYTHONPATH
+    if [ -f "${SCRIPT_DIR}/bixbench/postprocessing.py" ]; then
+        (cd "$SCRIPT_DIR" && "$VENV_PYTHON" "bixbench/postprocessing.py" "$FILTERED_CONFIG" --max_concurrent ${MAX_CONCURRENT:-20} --use-new-structure --run-id "$RUN_ID")
+    elif [ -f "bixbench/postprocessing.py" ]; then
+        (cd . && "$VENV_PYTHON" "bixbench/postprocessing.py" "$FILTERED_CONFIG" --max_concurrent ${MAX_CONCURRENT:-20} --use-new-structure --run-id "$RUN_ID")
+    elif [ -f "BixBench/bixbench/postprocessing.py" ]; then
+        (cd "BixBench" && "$VENV_PYTHON" "bixbench/postprocessing.py" "$FILTERED_CONFIG" --max_concurrent ${MAX_CONCURRENT:-20} --use-new-structure --run-id "$RUN_ID")
+    else
+        echo -e "${RED}Cannot find postprocessing.py in any of the expected directories${NC}"
+        exit 1
+    fi
     
     # Cleanup
     rm "$FILTERED_CONFIG" 2>/dev/null || true
 fi
 
-# No need to restore any files since we're generating everything dynamically
-# and not modifying any original configuration files
-
-# Optionally clean up our dynamic config directory (disabled by default)
-# rm -rf "$RUN_CONFIG_DIR" 2>/dev/null || true
-# Instead we keep it for debugging or reference purposes
+# Add run to history log
+echo "Completed run: ${RUN_ID} at $(date)" >> runs/run_history.log
 
 echo -e "${GREEN}Evaluation complete! Results are available in:${NC}"
 if [ "$RUN_OPENENDED" = true ]; then
-    echo -e "  - bixbench_results/${RUN_ID}/multi_model/ (open-ended questions)"
+    echo -e "  - ${RUNS_DIR}/results/multi_model/ (open-ended questions)"
 fi
 if [ "$RUN_MCQ" = true ]; then
-    echo -e "  - bixbench_results/${RUN_ID}/multi_model_mcq/ (multiple-choice questions)"
+    echo -e "  - ${RUNS_DIR}/results/multi_model_mcq/ (multiple-choice questions)"
 fi
 
 # Summarize the run configuration
 echo -e "${BLUE}Run configuration:${NC}"
 echo -e "  - Run ID: ${RUN_ID}"
 echo -e "  - Docker image: ${DOCKER_IMAGE}"
-echo -e "  - Generated configs: ${RUN_CONFIG_DIR}/"
+echo -e "  - Generated configs: ${RUNS_DIR}/config/"
 echo -e "  - Models evaluated: $([ "$RUN_GPT4O" = true ] && echo "GPT-4o " || echo "")$([ "$RUN_CLAUDE35" = true ] && echo "Claude3.5 " || echo "")$([ "$RUN_CLAUDE37" = true ] && echo "Claude3.7 " || echo "")$([ "$RUN_DEEPSEEK" = true ] && echo "DeepSeek " || echo "")"
 echo -e "  - Question types: $([ "$RUN_OPENENDED" = true ] && echo "Open-ended " || echo "")$([ "$RUN_MCQ" = true ] && echo "MCQ " || echo "")"
 echo -e "  - Mini mode: $([ "$RUN_MINI" = true ] && echo "Yes" || echo "No")"
-
-# Log the run details
-echo "Completed run: ${RUN_ID} at $(date)" >> bixbench_results/run_history.log

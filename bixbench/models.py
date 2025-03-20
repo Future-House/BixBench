@@ -96,13 +96,26 @@ class PathSettings(BaseModel):
     trajectories_dir: str
     data_folder: str
     hf_repo_id: str
+    
+    # Optional support for new folder structure
+    use_new_structure: bool = False
+    run_id: str = None
 
     def get_absolute_paths(self):
-        return {
+        paths = {
             "local_workspace_dir": Path(self.workspace_dir).absolute(),
             "local_trajectories_dir": Path(self.trajectories_dir).absolute(),
             "local_data_folder": Path(self.data_folder).absolute(),
         }
+        
+        # If using new folder structure with a run_id, adjust paths
+        if self.use_new_structure and self.run_id:
+            # For backward compatibility, check if paths already include run_id
+            # This is a heuristic - if trajectories_dir already has the run_id, we keep as is
+            if self.run_id not in str(paths["local_trajectories_dir"]):
+                paths["local_trajectories_dir"] = Path(f"runs/{self.run_id}/data/trajectories").absolute()
+                
+        return paths
 
 
 class PostProcessingSettings(BaseModel):
@@ -120,6 +133,7 @@ class BixbenchConfig(BaseModel):
     postprocessing: Optional[PostProcessingSettings] = None
     mini_mode: bool = False  # Flag for mini mode (runs only 10 examples)
     max_problems: int = None  # Limit number of problems for mini mode
+    use_new_structure: bool = False  # Flag for using new folder structure
 
     # Computed fields that come from processing the raw config
     agent_config: Optional[AgentConfig] = None
@@ -128,6 +142,7 @@ class BixbenchConfig(BaseModel):
     local_workspace_dir: Optional[Path] = None
     local_trajectories_dir: Optional[Path] = None
     local_data_folder: Optional[Path] = None
+    run_id: Optional[str] = None  # Extracted run ID
 
     class Config:
         arbitrary_types_allowed = True
@@ -152,14 +167,50 @@ class BixbenchConfig(BaseModel):
         if self.capsule.avoid_images:
             self.base_prompt += "\n" + prompts.AVOID_IMAGES
 
+        # Extract run_id from trajectories_dir path if it's in the new structure format
+        trajectory_path = Path(self.paths.trajectories_dir)
+        
+        # Check if this looks like a path in the new structure (runs/run_id/data/trajectories)
+        if "runs" in str(trajectory_path) and self.use_new_structure:
+            parts = str(trajectory_path).split("/")
+            for i, part in enumerate(parts):
+                if part == "runs" and i + 1 < len(parts):
+                    self.run_id = parts[i + 1]
+                    break
+        
+        # If we couldn't extract a run_id but we want to use the new structure,
+        # try to extract it from the model name
+        if not self.run_id and self.use_new_structure:
+            # Check if the model name contains a timestamp pattern which is typically part of run_id
+            import re
+            match = re.search(r'([a-zA-Z0-9_-]+_\d{8}_\d{6})', self.run_name)
+            if match:
+                self.run_id = match.group(1)
+            else:
+                # Fallback to using the run_name as run_id
+                self.run_id = self.run_name
+        
+        # Update paths object with run_id and new structure flag
+        if self.use_new_structure and self.run_id:
+            self.paths.use_new_structure = True
+            self.paths.run_id = self.run_id
+
         # Set absolute path values
         path_dict = self.paths.get_absolute_paths()
-        self.local_workspace_dir = path_dict["local_workspace_dir"] / self.run_name
-        self.local_trajectories_dir = (
-            path_dict["local_trajectories_dir"] / self.run_name
-        )
-        # We can share the data folder across runs
-        self.local_data_folder = path_dict["local_data_folder"]
+        
+        # If using new structure, handle paths differently
+        if self.use_new_structure and self.run_id:
+            # workspace_dir remains standard for compatibility
+            self.local_workspace_dir = path_dict["local_workspace_dir"] / self.run_name
+            # trajectories_dir is already adjusted in PathSettings.get_absolute_paths
+            self.local_trajectories_dir = path_dict["local_trajectories_dir"]
+            # data_folder stays the same
+            self.local_data_folder = path_dict["local_data_folder"]
+        else:
+            # Use original path handling for backward compatibility
+            self.local_workspace_dir = path_dict["local_workspace_dir"] / self.run_name
+            self.local_trajectories_dir = path_dict["local_trajectories_dir"] / self.run_name
+            self.local_data_folder = path_dict["local_data_folder"]
 
         return self
 
@@ -192,9 +243,24 @@ class PostprocessingConfig(BaseModel):
     results_dir: str = "bixbench_results"
     debug: bool = False
     mini_mode: bool = False  # Flag for mini mode (processes only 10 questions)
+    use_new_structure: bool = False  # Flag for using new folder structure
+    run_id: Optional[str] = None  # Used with new structure to identify the run
 
     replicate_paper_results: PaperReplicationConfig = Field(
         default_factory=PaperReplicationConfig
     )
     majority_vote: MajorityVoteConfig = Field(default_factory=MajorityVoteConfig)
     run_comparison: RunComparisonConfig = Field(default_factory=RunComparisonConfig)
+    
+    @model_validator(mode="after")
+    def adjust_paths_for_new_structure(self):
+        """Adjust paths if using the new folder structure"""
+        if self.use_new_structure and self.run_id:
+            # Check if paths already include the new structure
+            if not self.data_path.startswith(f"runs/{self.run_id}/"):
+                self.data_path = f"runs/{self.run_id}/data/trajectories"
+            
+            if not self.results_dir.startswith(f"runs/{self.run_id}/"):
+                self.results_dir = f"runs/{self.run_id}/results"
+        
+        return self
