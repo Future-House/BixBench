@@ -8,6 +8,12 @@ VENV_PYTHON="${SCRIPT_DIR}/.venv/bin/python"
 # Set up the Python path to find the bixbench module
 export PYTHONPATH="${SCRIPT_DIR}:${PYTHONPATH}"
 
+# Set USE_DOCKER=true by default if not already set
+if [ -z "$USE_DOCKER" ]; then
+    export USE_DOCKER=true
+    echo -e "\033[0;34mAutomatically setting USE_DOCKER=true\033[0m"
+fi
+
 # Set up colors for output
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
