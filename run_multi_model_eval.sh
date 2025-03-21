@@ -13,7 +13,20 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 RED='\033[0;31m'
 BLUE='\033[0;34m'
+PURPLE='\033[0;35m'
+CYAN='\033[0;36m'
+ORANGE='\033[0;33m'
+LIGHT_GREEN='\033[1;32m'
+LIGHT_BLUE='\033[1;34m'
+LIGHT_PURPLE='\033[1;35m'
+LIGHT_CYAN='\033[1;36m'
 NC='\033[0m' # No Color
+
+# Model-specific colors
+GPT4O_COLOR='\033[1;32m'    # Light Green for GPT-4o
+CLAUDE35_COLOR='\033[38;2;210;154;134m' # Light Orange (#d29a86) for Claude 3.5
+CLAUDE37_COLOR='\033[38;2;203;122;95m' # Darker Orange (#cb7a5f) for Claude 3.7
+DEEPSEEK_COLOR='\033[0;36m' # Cyan for DeepSeek
 
 # Default values
 RUN_OPENENDED=true
@@ -154,10 +167,10 @@ echo -e "  MCQ evaluations: $([ "$RUN_MCQ" = true ] && echo -e "${GREEN}Yes${NC}
 echo -e "  Mini mode (10 questions per type): $([ "$RUN_MINI" = true ] && echo -e "${GREEN}Yes${NC}" || echo -e "${RED}No${NC}")"
 echo -e "  Max concurrent API requests: ${GREEN}${MAX_CONCURRENT}${NC}"
 echo -e "  Models:"
-echo -e "    GPT-4o: $([ "$RUN_GPT4O" = true ] && echo -e "${GREEN}Yes${NC}" || echo -e "${RED}No${NC}")"
-echo -e "    Claude 3.5: $([ "$RUN_CLAUDE35" = true ] && echo -e "${GREEN}Yes${NC}" || echo -e "${RED}No${NC}")"
-echo -e "    Claude 3.7: $([ "$RUN_CLAUDE37" = true ] && echo -e "${GREEN}Yes${NC}" || echo -e "${RED}No${NC}")"
-echo -e "    DeepSeek: $([ "$RUN_DEEPSEEK" = true ] && echo -e "${GREEN}Yes${NC}" || echo -e "${RED}No${NC}")"
+echo -e "    ${GPT4O_COLOR}GPT-4o:${NC} $([ "$RUN_GPT4O" = true ] && echo -e "${GREEN}Yes${NC}" || echo -e "${RED}No${NC}")"
+echo -e "    ${CLAUDE35_COLOR}Claude 3.5:${NC} $([ "$RUN_CLAUDE35" = true ] && echo -e "${GREEN}Yes${NC}" || echo -e "${RED}No${NC}")"
+echo -e "    ${CLAUDE37_COLOR}Claude 3.7:${NC} $([ "$RUN_CLAUDE37" = true ] && echo -e "${GREEN}Yes${NC}" || echo -e "${RED}No${NC}")"
+echo -e "    ${DEEPSEEK_COLOR}DeepSeek:${NC} $([ "$RUN_DEEPSEEK" = true ] && echo -e "${GREEN}Yes${NC}" || echo -e "${RED}No${NC}")"
 
 # Get current date and time
 DATETIME=$(date +"%Y%m%d_%H%M%S")
@@ -353,6 +366,19 @@ run_model() {
     MODEL_ID=$2
     MODE=$3  # "open" or "mcq"
     
+    # Select the appropriate color based on model ID
+    if [[ "$MODEL_ID" == "gpt4o" ]]; then
+        MODEL_COLOR=$GPT4O_COLOR
+    elif [[ "$MODEL_ID" == "claude35" ]]; then
+        MODEL_COLOR=$CLAUDE35_COLOR
+    elif [[ "$MODEL_ID" == "claude37" ]]; then
+        MODEL_COLOR=$CLAUDE37_COLOR
+    elif [[ "$MODEL_ID" == "deepseek" ]]; then
+        MODEL_COLOR=$DEEPSEEK_COLOR
+    else
+        MODEL_COLOR=$BLUE
+    fi
+    
     # Use our dynamically generated config files with the new path
     CONFIG_FILE="${RUNS_DIR}/config/${MODEL_ID}_${MODE}_trajectories.yaml"
     
@@ -361,7 +387,7 @@ run_model() {
         MODEL_NAME="${MODEL_NAME} (Mini)"
     fi
     
-    echo -e "${YELLOW}Running ${MODEL_NAME} evaluation...${NC}"
+    echo -e "${MODEL_COLOR}[${MODEL_ID}]${YELLOW} Running ${MODEL_NAME} evaluation...${NC}"
     # Use the new structure flags for the Python script
     # Use the correct path for the Python script with the virtual environment and proper PYTHONPATH
     if [ -f "${SCRIPT_DIR}/bixbench/generate_trajectories.py" ]; then
@@ -376,9 +402,9 @@ run_model() {
     fi
     
     if [ $? -eq 0 ]; then
-        echo -e "${GREEN}${MODEL_NAME} evaluation completed successfully${NC}"
+        echo -e "${MODEL_COLOR}[${MODEL_ID}]${GREEN} ${MODEL_NAME} evaluation completed successfully${NC}"
     else
-        echo -e "${RED}${MODEL_NAME} evaluation failed${NC}"
+        echo -e "${MODEL_COLOR}[${MODEL_ID}]${RED} ${MODEL_NAME} evaluation failed${NC}"
     fi
 }
 
@@ -387,18 +413,22 @@ if [ "$RUN_OPENENDED" = true ]; then
     echo -e "${YELLOW}Running open-ended question evaluations...${NC}"
     
     if [ "$RUN_GPT4O" = true ]; then
+        echo -e "${GPT4O_COLOR}[GPT-4o]${NC} Starting open-ended evaluation"
         run_model "GPT-4o" "gpt4o" "open"
     fi
     
     if [ "$RUN_CLAUDE35" = true ]; then
+        echo -e "${CLAUDE35_COLOR}[Claude-3.5]${NC} Starting open-ended evaluation"
         run_model "Claude 3.5" "claude35" "open"
     fi
     
     if [ "$RUN_CLAUDE37" = true ]; then
+        echo -e "${CLAUDE37_COLOR}[Claude-3.7]${NC} Starting open-ended evaluation"
         run_model "Claude 3.7" "claude37" "open"
     fi
     
     if [ "$RUN_DEEPSEEK" = true ]; then
+        echo -e "${DEEPSEEK_COLOR}[DeepSeek]${NC} Starting open-ended evaluation"
         run_model "DeepSeek R1" "deepseek" "open"
     fi
 fi
@@ -408,18 +438,22 @@ if [ "$RUN_MCQ" = true ]; then
     echo -e "${YELLOW}Running multiple-choice question evaluations...${NC}"
     
     if [ "$RUN_GPT4O" = true ]; then
+        echo -e "${GPT4O_COLOR}[GPT-4o]${NC} Starting MCQ evaluation"
         run_model "GPT-4o MCQ" "gpt4o" "mcq"
     fi
     
     if [ "$RUN_CLAUDE35" = true ]; then
+        echo -e "${CLAUDE35_COLOR}[Claude-3.5]${NC} Starting MCQ evaluation"
         run_model "Claude 3.5 MCQ" "claude35" "mcq"
     fi
     
     if [ "$RUN_CLAUDE37" = true ]; then
+        echo -e "${CLAUDE37_COLOR}[Claude-3.7]${NC} Starting MCQ evaluation"
         run_model "Claude 3.7 MCQ" "claude37" "mcq"
     fi
     
     if [ "$RUN_DEEPSEEK" = true ]; then
+        echo -e "${DEEPSEEK_COLOR}[DeepSeek]${NC} Starting MCQ evaluation"
         run_model "DeepSeek R1 MCQ" "deepseek" "mcq"
     fi
 fi
@@ -573,11 +607,28 @@ EOL
 if [ "$RUN_OPENENDED" = true ]; then
     echo -e "${YELLOW}Running postprocessing for open-ended questions...${NC}"
     
+    # List models being processed
+    if [ "$RUN_GPT4O" = true ]; then
+        echo -e "${GPT4O_COLOR}[GPT-4o]${NC} Will be processed for open-ended evaluation"
+    fi
+    if [ "$RUN_CLAUDE35" = true ]; then
+        echo -e "${CLAUDE35_COLOR}[Claude-3.5]${NC} Will be processed for open-ended evaluation"
+    fi
+    if [ "$RUN_CLAUDE37" = true ]; then
+        echo -e "${CLAUDE37_COLOR}[Claude-3.7]${NC} Will be processed for open-ended evaluation"
+    fi
+    if [ "$RUN_DEEPSEEK" = true ]; then
+        echo -e "${DEEPSEEK_COLOR}[DeepSeek]${NC} Will be processed for open-ended evaluation"
+    fi
+    
     # Create a filtered config for selected models (open-ended)
     FILTERED_CONFIG="${RUNS_DIR}/config/filtered_multi_model_postprocessing.yaml"
     create_filtered_config "$FILTERED_CONFIG" "false"
     
     # Use the correct path for the Python script with the virtual environment and proper PYTHONPATH
+    echo -e "${BLUE}Running postprocessing with max concurrency: ${MAX_CONCURRENT}${NC}"
+    echo -e "${BLUE}[Note: Each model will be processed concurrently with its own rate limits]${NC}"
+    
     if [ -f "${SCRIPT_DIR}/bixbench/postprocessing.py" ]; then
         (cd "$SCRIPT_DIR" && "$VENV_PYTHON" "bixbench/postprocessing.py" "$FILTERED_CONFIG" --max_concurrent ${MAX_CONCURRENT:-20} --use-new-structure --run-id "$RUN_ID")
     elif [ -f "bixbench/postprocessing.py" ]; then
@@ -597,11 +648,28 @@ fi
 if [ "$RUN_MCQ" = true ]; then
     echo -e "${YELLOW}Running postprocessing for multiple-choice questions...${NC}"
     
+    # List models being processed
+    if [ "$RUN_GPT4O" = true ]; then
+        echo -e "${GPT4O_COLOR}[GPT-4o]${NC} Will be processed for MCQ evaluation"
+    fi
+    if [ "$RUN_CLAUDE35" = true ]; then
+        echo -e "${CLAUDE35_COLOR}[Claude-3.5]${NC} Will be processed for MCQ evaluation"
+    fi
+    if [ "$RUN_CLAUDE37" = true ]; then
+        echo -e "${CLAUDE37_COLOR}[Claude-3.7]${NC} Will be processed for MCQ evaluation"
+    fi
+    if [ "$RUN_DEEPSEEK" = true ]; then
+        echo -e "${DEEPSEEK_COLOR}[DeepSeek]${NC} Will be processed for MCQ evaluation"
+    fi
+    
     # Create a filtered config for selected models (MCQ)
     FILTERED_CONFIG="${RUNS_DIR}/config/filtered_multi_model_mcq_postprocessing.yaml"
     create_filtered_config "$FILTERED_CONFIG" "true"
     
     # Use the correct path for the Python script with the virtual environment and proper PYTHONPATH
+    echo -e "${BLUE}Running MCQ postprocessing with max concurrency: ${MAX_CONCURRENT}${NC}"
+    echo -e "${BLUE}[Note: Each model will be processed concurrently with its own rate limits]${NC}"
+    
     if [ -f "${SCRIPT_DIR}/bixbench/postprocessing.py" ]; then
         (cd "$SCRIPT_DIR" && "$VENV_PYTHON" "bixbench/postprocessing.py" "$FILTERED_CONFIG" --max_concurrent ${MAX_CONCURRENT:-20} --use-new-structure --run-id "$RUN_ID")
     elif [ -f "bixbench/postprocessing.py" ]; then
@@ -633,6 +701,11 @@ echo -e "${BLUE}Run configuration:${NC}"
 echo -e "  - Run ID: ${RUN_ID}"
 echo -e "  - Docker image: ${DOCKER_IMAGE}"
 echo -e "  - Generated configs: ${RUNS_DIR}/config/"
-echo -e "  - Models evaluated: $([ "$RUN_GPT4O" = true ] && echo "GPT-4o " || echo "")$([ "$RUN_CLAUDE35" = true ] && echo "Claude3.5 " || echo "")$([ "$RUN_CLAUDE37" = true ] && echo "Claude3.7 " || echo "")$([ "$RUN_DEEPSEEK" = true ] && echo "DeepSeek " || echo "")"
+echo -e "  - Models evaluated:"
+[ "$RUN_GPT4O" = true ] && echo -e "    ${GPT4O_COLOR}• GPT-4o${NC}"
+[ "$RUN_CLAUDE35" = true ] && echo -e "    ${CLAUDE35_COLOR}• Claude 3.5${NC}"
+[ "$RUN_CLAUDE37" = true ] && echo -e "    ${CLAUDE37_COLOR}• Claude 3.7${NC}"
+[ "$RUN_DEEPSEEK" = true ] && echo -e "    ${DEEPSEEK_COLOR}• DeepSeek${NC}"
 echo -e "  - Question types: $([ "$RUN_OPENENDED" = true ] && echo "Open-ended " || echo "")$([ "$RUN_MCQ" = true ] && echo "MCQ " || echo "")"
 echo -e "  - Mini mode: $([ "$RUN_MINI" = true ] && echo "Yes" || echo "No")"
+echo -e "  - Max concurrency: ${MAX_CONCURRENT}"
