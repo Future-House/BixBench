@@ -141,7 +141,13 @@ class TrajectoryGenerator:
         shutil.unpack_archive(zip_path, extract_dir)
 
         # Get the Data folder path
-        data_folder = next(p for p in extract_dir.iterdir() if "Data" in p.name)
+        data_folder = next(
+            (p for p in extract_dir.rglob("*") if p.is_dir() and "Data" in p.name), None
+        )
+        if data_folder is None:
+            raise FileNotFoundError(
+                "Could not find a directory containing 'Data' in its name"
+            )
 
         # Move contents of Data folder to parent directory
         for item in data_folder.iterdir():
@@ -153,9 +159,12 @@ class TrajectoryGenerator:
         # Safely remove Notebook folder if it exists
         try:
             notebook_folder = next(
-                p
-                for p in extract_dir.iterdir()
-                if "Notebook" in p.name and p.is_dir()  # Only match directories
+                (
+                    p
+                    for p in extract_dir.rglob("*")
+                    if p.is_dir() and "Notebook" in p.name
+                ),
+                None,
             )
             shutil.rmtree(notebook_folder)
         except StopIteration:
@@ -231,9 +240,9 @@ class TrajectoryGenerator:
             load_mcq(i, open_question=True, question_id=i["id"]) for i in raw_questions
         ]
         problem = self.config.base_prompt.format(
-            questions="\n-------\n".join([
-                i.question_prompt for i in processed_questions
-            ])
+            questions="\n-------\n".join(
+                [i.question_prompt for i in processed_questions]
+            )
         )
         answer = {i.question_id: i.ideal_answer for i in processed_questions}
         work_dir = (self.config.local_workspace_dir / capsule["uuid"]).absolute()
@@ -360,9 +369,12 @@ class TrajectoryGenerator:
         agent = self.config.agent_config.construct_agent()
         rollout_manager = getattr(self, f"{self.config.rollout.rollout_type}_rollout")
 
-        return await asyncio.gather(*[
-            rollout_manager(agent, environment) for environment in list_of_environments
-        ])
+        return await asyncio.gather(
+            *[
+                rollout_manager(agent, environment)
+                for environment in list_of_environments
+            ]
+        )
 
     async def run(self) -> None:
         """Run the full trajectory generation pipeline."""
@@ -384,9 +396,11 @@ class TrajectoryGenerator:
 
                 # Update progress bar
                 pbar.update(len(batch))
-                pbar.set_postfix({
-                    "batch": f"{i // self.config.rollout.batch_size + 1}/{total_batches}"
-                })
+                pbar.set_postfix(
+                    {
+                        "batch": f"{i // self.config.rollout.batch_size + 1}/{total_batches}"
+                    }
+                )
 
 
 if __name__ == "__main__":
@@ -401,5 +415,5 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    generator = TrajectoryGenerator(args.config)
+    generator = TrajectoryGenerator(args.config_file)
     asyncio.run(generator.run())
