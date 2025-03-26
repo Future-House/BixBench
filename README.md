@@ -117,6 +117,7 @@ Edit or create a new YAML file to modify:
 To use your own agent, use the `generate_trajectories.py` script by editing the [`custom_rollout`][(](https://github.com/Future-House/BixBench/blob/6c28217959d5d7dd6f48c59894534fced7c6c040/bixbench/generate_trajectories.py#L239)) function to generate trajectories in the same format as the BixBench trajectories, then use the `postprocessing.py` script to evaluate your agent's performance.
 
 ### Hosted trajectory generation
+
 Coming soon!
 
 ### Evaluate trajectories
@@ -168,6 +169,11 @@ You will see the following figures from the paper:
 
 ![Majority Vote Accuracy](bixbench_results/majority_vote_accuracy_refusal_option_comparison.png)
 
+## Gotchas
+
+- The BixBench dataset is large and may take several minutes to download.
+- When generating trajectories, the default batch size is set to 4 to optimize processing speed. You may need to adjust this value in the [configuration file](https://github.com/Future-House/BixBench/blob/8c57d3562044e4ce574a09438066033e21155f54/bixbench/run_configuration/generate_trajectories.yaml#L14) based on your API rate limits and available compute resources.
+- While the agent uses the local Jupyter kernel by default, we recommend using our custom Docker environment for improved performance. To enable this, pull the Docker image as described in the [Installation](#installation) section and set the environment variable `USE_DOCKER=true` when running the `generate_trajectories.py` script.
 
 ## Acknowledgments
 
