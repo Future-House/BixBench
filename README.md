@@ -114,7 +114,7 @@ Edit or create a new YAML file to modify:
 
 ### Using Your Own Agent
 
-To use your own agent, use the `generate_trajectories.py` script by editing the [`custom_rollout`][(](https://github.com/Future-House/BixBench/blob/6c28217959d5d7dd6f48c59894534fced7c6c040/bixbench/generate_trajectories.py#L239)) function to generate trajectories in the same format as the BixBench trajectories, then use the `postprocessing.py` script to evaluate your agent's performance.
+To use your own agent, use the `generate_trajectories.py` script by editing the [`custom_rollout`](https://github.com/Future-House/BixBench/blob/6c28217959d5d7dd6f48c59894534fced7c6c040/bixbench/generate_trajectories.py#L239) function to generate trajectories in the same format as the BixBench trajectories, then use the `postprocessing.py` script to evaluate your agent's performance.
 
 ### Hosted trajectory generation
 
