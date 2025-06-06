@@ -1,5 +1,6 @@
-from typing import Any
-
+from pydantic import BaseModel, Field, field_validator, model_validator
+from typing import Any, Optional, Dict, Tuple
+from functools import cached_property
 from aviary.core import Message
 from lmi import LiteLLMModel
 
@@ -8,79 +9,105 @@ from .prompts import (
     MCQ_PROMPT_TEMPLATE_WITHOUT_REFUSAL,
     OPEN_ENDED_PROMPT_TEMPLATE,
 )
-from .utils import AgentInput, EvalMode, parse_response, randomize_choices
+from .utils import Query, AnswerMode, parse_response, randomize_choices
 
 
-class ZeroshotBaseline:
-    def __init__(
-        self,
-        eval_mode: EvalMode,
-        with_refusal: bool,
-        model_name: str = "gpt-4o",
-        temperature: float = 1.0,
-        **kwargs: dict[str, Any],
-    ) -> None:
-        self.eval_mode = eval_mode
-        self.with_refusal = with_refusal
-        self.llm_client = LiteLLMModel(
-            name=f"{model_name}",
-            config={"name": model_name, "temperature": temperature, **kwargs},
+class ZeroshotBaseline(BaseModel):
+    
+    answer_mode: AnswerMode
+    with_refusal: bool
+    model_name: str = Field(default="gpt-4o")
+    temperature: float = Field(default=1.0, ge=0.0, le=2.0)
+    extra_kwargs: Dict[str, Any] = Field(default_factory=dict)
+
+    _llm_client: Optional[LiteLLMModel] = None
+    _query: Optional[Query] = None
+
+    class Config:
+        arbitrary_types_allowed = True
+        extra = "allow"
+
+    @model_validator(mode='after')
+    def initialize_llm_client(self) -> 'ZeroshotBaseline':
+        """Initialize the LLM client after model creation."""
+        config = {
+            "name": self.model_name,
+            "temperature": self.temperature,
+            **self.extra_kwargs
+        }
+        self._llm_client = LiteLLMModel(
+            name=self.model_name,
+            config=config
         )
+        return self
 
-    def _get_prompt_template(self) -> str:
+    @property
+    def llm_client(self) -> LiteLLMModel:
+        """Access the LLM client."""
+        if self._llm_client is None:
+            raise RuntimeError("LLM client not initialized")
+        return self._llm_client
+    
+    @property
+    def query(self) -> Query:
+        """Access the current query."""
+        if self._query is None:
+            raise RuntimeError("No query has been set")
+        return self._query
+    
+    @query.setter
+    def query(self, value: Query) -> None:
+        """Set the current query."""
+        self._query = value
+    
+    @cached_property
+    def prompt_template(self) -> str:
         """Get the appropriate prompt template based on evaluation mode and refusal setting."""
-        if self.eval_mode == EvalMode.mcq:
+        if self.answer_mode == AnswerMode.mcq:
             return (
                 MCQ_PROMPT_TEMPLATE_WITH_REFUSAL
                 if self.with_refusal
                 else MCQ_PROMPT_TEMPLATE_WITHOUT_REFUSAL
             )
-        if self.eval_mode == EvalMode.openanswer:
+        if self.answer_mode == AnswerMode.openanswer:
             return OPEN_ENDED_PROMPT_TEMPLATE
-        return None
+        raise ValueError(f"Unknown answer mode: {self.answer_mode}")
 
-    def _prep_query(self) -> str:
+    def _prep_query(self) -> Tuple[str, Any, Optional[Any]]:
         """Generate query based on evaluation mode and parameters."""
-        template = self._get_prompt_template()
-
-        if self.eval_mode == EvalMode.mcq:
+        template = self.prompt_template
+        
+        if self.answer_mode == AnswerMode.mcq:
             distractors, target, unsure = randomize_choices(
-                self.input.target, self.input.choices, with_refusal=self.with_refusal
+                self.query.target, self.query.choices, with_refusal=self.with_refusal
             )
-            return (
-                template.format(
-                    question=self.input.question, options="\n".join(distractors)
-                ),
-                target,
-                unsure,
+            prompted_question = template.format(
+                question=self.query.question, options="\n".join(distractors)
             )
+            return prompted_question, target, unsure
+        
+        if self.answer_mode == AnswerMode.openanswer:
+            prompted_question = template.format(question=self.query.question)
+            return prompted_question, self.query.target, None
+        
+        raise ValueError(f"Unknown answer mode: {self.answer_mode}")
 
-        if self.eval_mode == EvalMode.openanswer:
-            return (
-                template.format(question=self.input.question),
-                self.input.target,
-                "empty",
-            )
-        return None
-
-    async def generate_zeroshot_answers(
-        self,
-        agent_input: AgentInput,
-    ) -> list[str]:
+    async def generate_zeroshot_answers(self, query: Query) -> Query:
         """Generate baseline textual answers.
-
-        Supports MCQ and open-ended questions.
+        Supports MCQ and open-answer questions.
         This version doesn't parse images.
         """
-        self.input = agent_input
-        query, target, unsure = self._prep_query()
+        self.query = query
+        prompted_question, target, unsure = self._prep_query()
+        messages = [Message(content=prompted_question)]
+        completion = await self.llm_client.call_single(messages)
+        response = completion.model_dump()["text"]
         try:
-            messages = [Message(content=query)]
-            completion = await self.llm_client.call_single(messages)
-            response = completion.model_dump()["text"]
-            predicted_answer = parse_response(response, eval_mode=self.eval_mode)
+            predicted_answer = parse_response(response, answer_mode=self.answer_mode)
         except Exception as e:
-            print(f"Failed to get response because of {e}")
             predicted_answer = "failed"
-
-        return predicted_answer, target, unsure
+        
+        self.query.predicted = predicted_answer
+        self.query.target = target
+        self.query.unsure = unsure
+        return self.query
