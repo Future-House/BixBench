@@ -230,10 +230,12 @@ def draw_model_bars(
             mean = results[run_name]["mean"]
             ci_low = results[run_name]["ci_low"]
             ci_high = results[run_name]["ci_high"]
-            yerr = np.array([
-                [mean - ci_low],
-                [ci_high - mean],
-            ])
+            yerr = np.array(
+                [
+                    [mean - ci_low],
+                    [ci_high - mean],
+                ]
+            )
             label, color = next(
                 [group, color]
                 for group, color in color_map.items()

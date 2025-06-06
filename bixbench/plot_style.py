@@ -34,50 +34,54 @@ def set_fh_mpl_style(dark_mode: bool = False):
     fe = mpl.font_manager.FontEntry(fname=str(FONT_PATH), name="sometype")
     mpl.font_manager.fontManager.ttflist.append(fe)
     if dark_mode:
-        mpl.rcParams.update({
-            "axes.facecolor": "#000000",  # Black background for axes
-            "grid.color": "#444444",  # Dark gray grid lines
-            "axes.edgecolor": "#FFFFFF",  # White axes edges
-            "figure.facecolor": "#000000",  # Black background for the figure
-            "axes.grid": False,
-            "axes.prop_cycle": plt.cycler(color=COLOR_CYCLE),
-            "font.family": fe.name,
-            "font.size": 14,
-            "figure.figsize": (
-                6,
-                6 / 1.3,
-            ),  # Adjust figure size for 1/3 the width of a presentation slide
-            "figure.dpi": 200,
-            "ytick.left": True,
-            "xtick.bottom": True,
-            "ytick.color": "#FFFFFF",  # White y-tick labels
-            "xtick.color": "#FFFFFF",  # White x-tick labels
-            "axes.labelcolor": "#FFFFFF",  # White axis labels
-            "axes.titlecolor": "#FFFFFF",  # White title
-            "text.color": "#FFFFFF",  # White text
-            "image.cmap": "viridis",  # Colormap suitable for dark backgrounds
-            "lines.markersize": 6,
-        })
+        mpl.rcParams.update(
+            {
+                "axes.facecolor": "#000000",  # Black background for axes
+                "grid.color": "#444444",  # Dark gray grid lines
+                "axes.edgecolor": "#FFFFFF",  # White axes edges
+                "figure.facecolor": "#000000",  # Black background for the figure
+                "axes.grid": False,
+                "axes.prop_cycle": plt.cycler(color=COLOR_CYCLE),
+                "font.family": fe.name,
+                "font.size": 14,
+                "figure.figsize": (
+                    6,
+                    6 / 1.3,
+                ),  # Adjust figure size for 1/3 the width of a presentation slide
+                "figure.dpi": 200,
+                "ytick.left": True,
+                "xtick.bottom": True,
+                "ytick.color": "#FFFFFF",  # White y-tick labels
+                "xtick.color": "#FFFFFF",  # White x-tick labels
+                "axes.labelcolor": "#FFFFFF",  # White axis labels
+                "axes.titlecolor": "#FFFFFF",  # White title
+                "text.color": "#FFFFFF",  # White text
+                "image.cmap": "viridis",  # Colormap suitable for dark backgrounds
+                "lines.markersize": 6,
+            }
+        )
     else:
-        mpl.rcParams.update({
-            "axes.facecolor": "#FFF",
-            "grid.color": "#AAAAAA",  # Dark gray grid lines
-            "axes.edgecolor": "#333333",
-            "figure.facecolor": "#FFFFFF",
-            "axes.grid": False,
-            "axes.prop_cycle": plt.cycler(color=COLOR_CYCLE),
-            "font.family": fe.name,
-            "font.size": 14,
-            "figure.figsize": (
-                6,
-                6 / 1.3,
-            ),  # Adjust figure size for 1/3 the width of a presentation slide
-            "figure.dpi": 200,
-            "ytick.left": True,
-            "xtick.bottom": True,
-            "image.cmap": "viridis",
-            "lines.markersize": 6,
-        })
+        mpl.rcParams.update(
+            {
+                "axes.facecolor": "#FFF",
+                "grid.color": "#AAAAAA",  # Dark gray grid lines
+                "axes.edgecolor": "#333333",
+                "figure.facecolor": "#FFFFFF",
+                "axes.grid": False,
+                "axes.prop_cycle": plt.cycler(color=COLOR_CYCLE),
+                "font.family": fe.name,
+                "font.size": 14,
+                "figure.figsize": (
+                    6,
+                    6 / 1.3,
+                ),  # Adjust figure size for 1/3 the width of a presentation slide
+                "figure.dpi": 200,
+                "ytick.left": True,
+                "xtick.bottom": True,
+                "image.cmap": "viridis",
+                "lines.markersize": 6,
+            }
+        )
 
 
 def set_fh_plotly_style(dark_mode: bool = False):
