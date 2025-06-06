@@ -13,7 +13,7 @@ from .utils import Query, AnswerMode, parse_response, randomize_choices
 
 
 class ZeroshotBaseline(BaseModel):
-    
+
     answer_mode: AnswerMode
     with_refusal: bool
     model_name: str = Field(default="gpt-4o")
@@ -27,18 +27,15 @@ class ZeroshotBaseline(BaseModel):
         arbitrary_types_allowed = True
         extra = "allow"
 
-    @model_validator(mode='after')
-    def initialize_llm_client(self) -> 'ZeroshotBaseline':
+    @model_validator(mode="after")
+    def initialize_llm_client(self) -> "ZeroshotBaseline":
         """Initialize the LLM client after model creation."""
         config = {
             "name": self.model_name,
             "temperature": self.temperature,
-            **self.extra_kwargs
+            **self.extra_kwargs,
         }
-        self._llm_client = LiteLLMModel(
-            name=self.model_name,
-            config=config
-        )
+        self._llm_client = LiteLLMModel(name=self.model_name, config=config)
         return self
 
     @property
@@ -47,19 +44,19 @@ class ZeroshotBaseline(BaseModel):
         if self._llm_client is None:
             raise RuntimeError("LLM client not initialized")
         return self._llm_client
-    
+
     @property
     def query(self) -> Query:
         """Access the current query."""
         if self._query is None:
             raise RuntimeError("No query has been set")
         return self._query
-    
+
     @query.setter
     def query(self, value: Query) -> None:
         """Set the current query."""
         self._query = value
-    
+
     @cached_property
     def prompt_template(self) -> str:
         """Get the appropriate prompt template based on evaluation mode and refusal setting."""
@@ -76,7 +73,7 @@ class ZeroshotBaseline(BaseModel):
     def _prep_query(self) -> Tuple[str, Any, Optional[Any]]:
         """Generate query based on evaluation mode and parameters."""
         template = self.prompt_template
-        
+
         if self.answer_mode == AnswerMode.mcq:
             distractors, target, unsure = randomize_choices(
                 self.query.target, self.query.choices, with_refusal=self.with_refusal
@@ -85,11 +82,11 @@ class ZeroshotBaseline(BaseModel):
                 question=self.query.question, options="\n".join(distractors)
             )
             return prompted_question, target, unsure
-        
+
         if self.answer_mode == AnswerMode.openanswer:
             prompted_question = template.format(question=self.query.question)
             return prompted_question, self.query.target, None
-        
+
         raise ValueError(f"Unknown answer mode: {self.answer_mode}")
 
     async def generate_zeroshot_answers(self, query: Query) -> Query:
@@ -106,7 +103,7 @@ class ZeroshotBaseline(BaseModel):
             predicted_answer = parse_response(response, answer_mode=self.answer_mode)
         except Exception as e:
             predicted_answer = "failed"
-        
+
         self.query.predicted = predicted_answer
         self.query.target = target
         self.query.unsure = unsure
