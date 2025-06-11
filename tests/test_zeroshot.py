@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from bixbench.utils import Query, AnswerMode
+from bixbench.utils import AnswerMode, Query
 from bixbench.zero_shot import ZeroshotBaseline
 
 sys.path.append("../")
@@ -86,5 +86,6 @@ class TestZeroshotBaseline:
             baseline.prompt_template()
             == pytest.importorskip("bixbench.prompts").OPEN_ENDED_PROMPT_TEMPLATE
         )
+
 
 # TODO: ADD TESTS FOR GRADING, SETTING QUERY

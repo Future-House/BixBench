@@ -1,15 +1,16 @@
-from pydantic import BaseModel, Field, field_validator, model_validator
-from typing import Any, Optional, Dict, Tuple
 from functools import cached_property
+from typing import Any, Optional
+
 from aviary.core import Message
 from lmi import LiteLLMModel
+from pydantic import BaseModel, Field, model_validator
 
 from .prompts import (
     MCQ_PROMPT_TEMPLATE_WITH_REFUSAL,
     MCQ_PROMPT_TEMPLATE_WITHOUT_REFUSAL,
     OPEN_ENDED_PROMPT_TEMPLATE,
 )
-from .utils import Query, AnswerMode, parse_response, randomize_choices
+from .utils import AnswerMode, Query, parse_response, randomize_choices
 
 
 class ZeroshotBaseline(BaseModel):
@@ -18,7 +19,7 @@ class ZeroshotBaseline(BaseModel):
     with_refusal: bool
     model_name: str = Field(default="gpt-4o")
     temperature: float = Field(default=1.0, ge=0.0, le=2.0)
-    extra_kwargs: Dict[str, Any] = Field(default_factory=dict)
+    extra_kwargs: dict[str, Any] = Field(default_factory=dict)
 
     _llm_client: Optional[LiteLLMModel] = None
     _query: Optional[Query] = None
@@ -70,7 +71,7 @@ class ZeroshotBaseline(BaseModel):
             return OPEN_ENDED_PROMPT_TEMPLATE
         raise ValueError(f"Unknown answer mode: {self.answer_mode}")
 
-    def _prep_query(self) -> Tuple[str, Any, Optional[Any]]:
+    def _prep_query(self) -> tuple[str, Any, Optional[Any]]:
         """Generate query based on evaluation mode and parameters."""
         template = self.prompt_template
 
@@ -90,10 +91,7 @@ class ZeroshotBaseline(BaseModel):
         raise ValueError(f"Unknown answer mode: {self.answer_mode}")
 
     async def generate_zeroshot_answers(self, query: Query) -> Query:
-        """Generate baseline textual answers.
-        Supports MCQ and open-answer questions.
-        This version doesn't parse images.
-        """
+        """Generate baseline textual answers. Supports MCQ and open-answer questions."""
         self.query = query
         prompted_question, target, unsure = self._prep_query()
         messages = [Message(content=prompted_question)]
@@ -101,7 +99,7 @@ class ZeroshotBaseline(BaseModel):
         response = completion.model_dump()["text"]
         try:
             predicted_answer = parse_response(response, answer_mode=self.answer_mode)
-        except Exception as e:
+        except Exception:
             predicted_answer = "failed"
 
         self.query.predicted = predicted_answer

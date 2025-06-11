@@ -11,9 +11,9 @@ from dotenv import load_dotenv
 from lmi import LiteLLMModel
 
 from bixbench import (
+    AnswerMode,
     GradeAnswer,
     compute_metrics,
-    AnswerMode,
 )
 
 load_dotenv()
@@ -54,8 +54,7 @@ async def grade_answers(
     **kwargs: dict[str, Any],
 ):
     """Grade answers based on evaluation mode."""
-    df = pd.read_csv(input_file)  
-    
+    query_df = pd.read_csv(input_file)
 
     if answer_mode == AnswerMode.openanswer:
         llm_client = LiteLLMModel(
@@ -68,19 +67,21 @@ async def grade_answers(
         )
 
         results = [
-                    await grader.grade(
-                        question=row["question"],
-                        target=str(row["target"]),
-                        predicted=str(row["predicted"]),
-                        unsure=None,
-                        evaluation_mode=row["evaluation_mode"],
-                        partial_match=True,
-                        llm_match=True,
-                    )
-                    for _, row in df.iterrows()
-                ]
-        
-        df["grade"], df["correct"], df["sure"] = zip(*results, strict=True)
+            await grader.grade(
+                question=row["question"],
+                target=str(row["target"]),
+                predicted=str(row["predicted"]),
+                unsure=None,
+                evaluation_mode=row["evaluation_mode"],
+                partial_match=True,
+                llm_match=True,
+            )
+            for _, row in query_df.iterrows()
+        ]
+
+        query_df["grade"], query_df["correct"], query_df["sure"] = zip(
+            *results, strict=True
+        )
     elif answer_mode == AnswerMode.mcq:
         grader = GradeAnswer(answer_mode=answer_mode)
         results = [
@@ -89,18 +90,20 @@ async def grade_answers(
                 predicted=row["predicted"],
                 unsure=row["unsure"],
                 evaluation_mode="str_verifier",
-            ) 
-            for _, row in df.iterrows()
+            )
+            for _, row in query_df.iterrows()
         ]
 
-        df["grade"], df["correct"], df["sure"] = zip(*results, strict=True)
+        query_df["grade"], query_df["correct"], query_df["sure"] = zip(
+            *results, strict=True
+        )
 
     else:
         raise ValueError(f"Unknown answer mode: {answer_mode}")
 
-    # save df as pd
-    df.to_csv(input_file, index=False)
-    return compute_metrics(df["grade"].to_list(), df["sure"].to_list())
+    # save query_df as pd
+    query_df.to_csv(input_file, index=False)
+    return compute_metrics(query_df["grade"].to_list(), query_df["sure"].to_list())
 
 
 async def main():

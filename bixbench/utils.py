@@ -2,9 +2,9 @@ import random
 import string
 import uuid
 from enum import StrEnum, auto
+from typing import Optional
 
 from pydantic import BaseModel, ConfigDict
-from typing import Optional
 
 
 class AnswerMode(StrEnum):
