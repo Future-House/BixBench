@@ -64,14 +64,14 @@ class TestZeroshotBaseline:
         # MCQ with refusal
         baseline = ZeroshotBaseline(answer_mode=AnswerMode.mcq, with_refusal=True)
         assert (
-            baseline.prompt_template()
+            baseline.prompt_template
             == pytest.importorskip("bixbench.prompts").MCQ_PROMPT_TEMPLATE_WITH_REFUSAL
         )
 
         # MCQ without refusal
         baseline = ZeroshotBaseline(answer_mode=AnswerMode.mcq, with_refusal=False)
         assert (
-            baseline.prompt_template()
+            baseline.prompt_template
             == pytest.importorskip(
                 "bixbench.prompts"
             ).MCQ_PROMPT_TEMPLATE_WITHOUT_REFUSAL
@@ -83,7 +83,7 @@ class TestZeroshotBaseline:
             with_refusal=True,  # This shouldn't matter for open-ended
         )
         assert (
-            baseline.prompt_template()
+            baseline.prompt_template
             == pytest.importorskip("bixbench.prompts").OPEN_ENDED_PROMPT_TEMPLATE
         )
 

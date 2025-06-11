@@ -92,7 +92,7 @@ def test_parse_response(text: str, answer_mode: AnswerMode, tag: str, expected: 
         pytest.param("A", "B", "B", 0, True, id="incorrect_and_unsure"),
     ],
 )
-def test_grade_mcq_answer(
+async def test_grade_mcq_answer(
     target: str,
     predicted: str,
     unsure: str,
@@ -100,7 +100,7 @@ def test_grade_mcq_answer(
     expected_refusal: bool,
 ):
     mcq_grader = MCQGrader()
-    grade_result = mcq_grader.grade(
+    grade_result = await mcq_grader.grade(
         target, predicted, unsure, evaluation_mode="str_verifier"
     )
 
