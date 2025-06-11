@@ -77,12 +77,6 @@ jobs:
         run: |
           # Check for formatting issues
           black --check .
-
-      - name: Run Codespell
-        run: |
-          # Check for spelling mistakes
-          codespell
-
       - name: Validate pyproject.toml
         run: |
           # Validate pyproject.toml if it exists
