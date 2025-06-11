@@ -11,10 +11,9 @@ from dotenv import load_dotenv
 from lmi import LiteLLMModel
 
 from bixbench import (
-    EvalMode,
+    GradeAnswer,
     compute_metrics,
-    grade_mcq_answer,
-    grade_open_ended_answer,
+    AnswerMode,
 )
 
 load_dotenv()
@@ -29,13 +28,13 @@ def parse_args():
         "--input-file", required=True, help="Input CSV file with answers to grade"
     )
     parser.add_argument(
-        "--eval-mode",
+        "--answer-mode",
         choices=["mcq", "openanswer"],
         required=True,
-        help="Evaluation mode",
+        help="Answer mode",
     )
     parser.add_argument(
-        "--model", default="gpt-4o", help="Model name for open-ended grading"
+        "--model", default="gpt-4o", help="Model name for open-answer grading"
     )
     parser.add_argument(
         "--temperature", type=float, default=1.0, help="Model temperature"
@@ -48,46 +47,60 @@ def parse_args():
 
 
 async def grade_answers(
-    input_file: str,
-    eval_mode: EvalMode,
+    input_file: str | Path,
+    answer_mode: AnswerMode,
     model_name: str = "gpt-4o",
     temperature: float = 1.0,
     **kwargs: dict[str, Any],
 ):
     """Grade answers based on evaluation mode."""
-    df = pd.read_csv(input_file)  # noqa: PD901
-    try:
-        if eval_mode == EvalMode.openanswer:
-            llm_client = LiteLLMModel(
-                name=f"{model_name}",
-                config={"name": model_name, "temperature": temperature, **kwargs},
-            )
-            df["grade"], df["correct"], df["sure"] = zip(
-                *[
-                    await grade_open_ended_answer(
-                        row["question"], row["target"], row["predicted"], llm_client
+    df = pd.read_csv(input_file)  
+    
+
+    if answer_mode == AnswerMode.openanswer:
+        llm_client = LiteLLMModel(
+            name=f"{model_name}",
+            config={"name": model_name, "temperature": temperature, **kwargs},
+        )
+        grader = GradeAnswer(
+            answer_mode=answer_mode,
+            llm_client=llm_client,
+        )
+
+        results = [
+                    await grader.grade(
+                        question=row["question"],
+                        target=str(row["target"]),
+                        predicted=str(row["predicted"]),
+                        unsure=None,
+                        evaluation_mode=row["evaluation_mode"],
+                        partial_match=True,
+                        llm_match=True,
                     )
                     for _, row in df.iterrows()
-                ],
-                strict=True,
-            )
-        else:
-            df["grade"], df["correct"], df["sure"] = zip(
-                *[
-                    grade_mcq_answer(row["target"], row["predicted"], row["unsure"])
-                    for _, row in df.iterrows()
-                ],
-                strict=True,
-            )
+                ]
+        
+        df["grade"], df["correct"], df["sure"] = zip(*results, strict=True)
+    elif answer_mode == AnswerMode.mcq:
+        grader = GradeAnswer(answer_mode=answer_mode)
+        results = [
+            await grader.grade(
+                target=row["target"],
+                predicted=row["predicted"],
+                unsure=row["unsure"],
+                evaluation_mode="str_verifier",
+            ) 
+            for _, row in df.iterrows()
+        ]
 
-        # save df as pd
-        df.to_csv(input_file, index=False)
+        df["grade"], df["correct"], df["sure"] = zip(*results, strict=True)
 
-        return compute_metrics(df["grade"].to_list(), df["sure"].to_list())
+    else:
+        raise ValueError(f"Unknown answer mode: {answer_mode}")
 
-    except Exception as e:
-        print(f"Error: {e!s}", file=sys.stderr)
-        sys.exit(1)
+    # save df as pd
+    df.to_csv(input_file, index=False)
+    return compute_metrics(df["grade"].to_list(), df["sure"].to_list())
 
 
 async def main():
@@ -95,7 +108,7 @@ async def main():
         args = parse_args()
         metrics = await grade_answers(
             args.input_file,
-            args.eval_mode,
+            args.answer_mode,
             args.model,
             args.temperature,
         )
