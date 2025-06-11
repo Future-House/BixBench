@@ -85,6 +85,7 @@ def test_parse_response(text: str, answer_mode: AnswerMode, tag: str, expected: 
     assert parse_response(text=text, tag=tag, answer_mode=answer_mode) == expected
 
 
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("target", "predicted", "unsure", "expected_grade", "expected_refusal"),
     [
