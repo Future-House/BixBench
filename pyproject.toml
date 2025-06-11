@@ -185,8 +185,6 @@ extend-select = [
   "RUF032",
   "RUF033",
   "RUF034",
-  #"RUF035",
-  "S704",
   "RUF036",
   "RUF038",
   "RUF039",
