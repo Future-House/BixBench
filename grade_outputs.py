@@ -72,7 +72,7 @@ async def grade_answers(
                 target=str(row["target"]),
                 predicted=str(row["predicted"]),
                 unsure=None,
-                evaluation_mode=row["evaluation_mode"],
+                evaluation_mode=row.get("evaluation_mode", "llm_verifier"),
                 partial_match=True,
                 llm_match=True,
             )
