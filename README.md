@@ -9,7 +9,6 @@
     <a href="https://github.com/Future-House/BixBench/actions/workflows/tests.yml">
     </p>
 
-
 # BixBench: A Comprehensive Benchmark for LLM-based Agents in Computational Biology
 
 BixBench is a benchmark designed to evaluate AI agents on real-world bioinformatics tasks.
