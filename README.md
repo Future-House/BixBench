@@ -5,7 +5,10 @@
     <img alt="GitHub" src="https://img.shields.io/badge/GitHub-Repository-181717.svg">
     <a href="https://huggingface.co/datasets/futurehouse/BixBench">
     <img alt="Dataset" src="https://img.shields.io/badge/Hugging%20Face-Dataset-yellow.svg">
-</p>
+    <img alt="Tests" src="https://github.com/Future-House/BixBench/actions/workflows/tests.yml/badge.svg">
+    <a href="https://github.com/Future-House/BixBench/actions/workflows/tests.yml">
+    </p>
+
 
 # BixBench: A Comprehensive Benchmark for LLM-based Agents in Computational Biology
 
