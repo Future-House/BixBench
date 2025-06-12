@@ -105,16 +105,18 @@ async def evaluate(
                 )
             )
 
-            results.append(
-                {
-                    "uuid": query.id,
-                    "question": query.question,
-                    "predicted": query.predicted,
-                    "target": query.target,
-                    "unsure": query.unsure,
-                    "evaluation_mode": query.evaluation_mode,
-                }
-            )
+            result_dict = {
+                "uuid": query.id,
+                "question": query.question,
+                "predicted": query.predicted,
+                "target": query.target,
+                "unsure": query.unsure,
+            }
+
+        if query.evaluation_mode is not None:
+            result_dict["evaluation_mode"] = query.evaluation_mode
+
+        results.append(result_dict)
 
     # make directory if it doesn't exist
     if not os.path.exists(output_dir):
