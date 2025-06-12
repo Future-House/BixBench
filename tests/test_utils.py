@@ -2,8 +2,13 @@ import sys
 
 import pytest
 
-from bixbench.graders import compute_metrics, grade_mcq_answer
-from bixbench.utils import EvalMode, parse_response, randomize_choices
+from bixbench.graders import MCQGrader
+from bixbench.utils import (
+    AnswerMode,
+    compute_metrics,
+    parse_response,
+    randomize_choices,
+)
 
 sys.path.append("../")
 
@@ -33,53 +38,54 @@ def test_randomize_choices(
             for choice in shuffled_choices
         )
     else:
-        assert unsure == "empty"
+        assert unsure is None
 
 
 @pytest.mark.parametrize(
-    ("text", "eval_mode", "tag", "expected"),
+    ("text", "answer_mode", "tag", "expected"),
     [
         pytest.param(
             "This is a mock response. Answer is: <answer>A</answer>.",
-            EvalMode.mcq,
+            AnswerMode.mcq,
             "answer",
             "A",
             id="simple",
         ),
         pytest.param(
             "This is a mock response. Answer is: <answer> A </answer>.",
-            EvalMode.mcq,
+            AnswerMode.mcq,
             "answer",
             "A",
             id="with_spaces",
         ),
         pytest.param(
             "This is a mock response. Answer is: <answer>a </answer>.",
-            EvalMode.mcq,
+            AnswerMode.mcq,
             "answer",
             "A",
             id="lowercase",
         ),
         pytest.param(
             "This is a mock response. Answer is: <answer> Anything is okay </answer>",
-            EvalMode.openanswer,
+            AnswerMode.openanswer,
             "answer",
             " Anything is okay ",
             id="openanswer",
         ),
         pytest.param(
             "This is a mock response. Answer is: <response>this is the response</response>.",
-            EvalMode.openanswer,
+            AnswerMode.openanswer,
             "response",
             "this is the response",
             id="response tag",
         ),
     ],
 )
-def test_parse_response(text: str, eval_mode: EvalMode, tag: str, expected: str):
-    assert parse_response(text=text, tag=tag, eval_mode=eval_mode) == expected
+def test_parse_response(text: str, answer_mode: AnswerMode, tag: str, expected: str):
+    assert parse_response(text=text, tag=tag, answer_mode=answer_mode) == expected
 
 
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("target", "predicted", "unsure", "expected_grade", "expected_refusal"),
     [
@@ -87,17 +93,20 @@ def test_parse_response(text: str, eval_mode: EvalMode, tag: str, expected: str)
         pytest.param("A", "B", "B", 0, True, id="incorrect_and_unsure"),
     ],
 )
-def test_grade_mcq_answer(
+async def test_grade_mcq_answer(
     target: str,
     predicted: str,
     unsure: str,
     expected_grade: int,
     expected_refusal: bool,
 ):
-    grade, _, refusal = grade_mcq_answer(target, predicted, unsure)
+    mcq_grader = MCQGrader()
+    grade_result = await mcq_grader.grade(
+        target, predicted, unsure, evaluation_mode="str_verifier"
+    )
 
-    assert grade == expected_grade
-    assert refusal == expected_refusal
+    assert grade_result.grade == expected_grade
+    assert grade_result.refusal == expected_refusal
 
 
 @pytest.mark.parametrize(

@@ -17,7 +17,7 @@ majority_vote:
     refusal_option_comparison:
       - "claude_mcq_image_without_refusal"
       - "4o_mcq_image_without_refusal"
-      - "claude_mcq_image_with_refusal" 
+      - "claude_mcq_image_with_refusal"
       - "4o_mcq_image_with_refusal"
 
 run_comparison:

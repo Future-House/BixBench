@@ -140,7 +140,7 @@ The script will save the evaluation dataframe as a CSV file in the `bixbench_res
 
 ## Zero-shot Evaluations & Grading
 
-You can run zero-shot evaluations using the `run_zeroshot_evals.py` script and then automatically grade the responses using the `grade_outputs.py` script. This code:
+You can run zero-shot evaluations using the `generate_zeroshot_evals.py` script and then grade the responses using the `grade_outputs.py` script. These two scripts:
 
 1. Loads the BixBench dataset from Hugging Face
 2. Evaluates the LLM on the dataset, outputting a CSV file with the results
@@ -148,6 +148,23 @@ You can run zero-shot evaluations using the `run_zeroshot_evals.py` script and t
 4. Saves the final results as a JSON file
 
 The scripts can be configured to run with open-ended questions, multiple-choice questions (with or without a refusal option), different models, and different temperatures. To explore the different options, run the scripts with the `--help` flag.
+
+**Example: Generate zero-shot answers in MCQ setting with the "refusal option" (in addition to the original distractors)**
+
+```bash
+python generate_zeroshot_evals.py \
+        --answer-mode "mcq" \
+        --model "gpt-4o" \
+        --with-refusal
+```
+
+**Example: Grade the zero-shot answers from the previous step**
+
+```bash
+python grade_outputs.py \
+        --input-file path/to/zeroshot.csv \
+        --answer-mode "mcq"
+```
 
 ## Replicating the BixBench Paper Results
 

@@ -5,10 +5,10 @@ agent:
   agent_kwargs:
     llm_model:
       name: "claude-3-7-sonnet-20250219"
-      parallel_tool_calls: False 
+      parallel_tool_calls: False
       num_retries: 5
-      temperature: 1.0 
-    hide_old_env_states: True 
+      temperature: 1.0
+    hide_old_env_states: True
 rollout:
   max_steps: 40
   batch_size: 4

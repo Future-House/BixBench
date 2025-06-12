@@ -58,6 +58,12 @@ dev = [
 [project.scripts]
 run_expt = 'scripts.configurable:_run_expt'
 
+[tool.codespell]
+check-filenames = true
+check-hidden = true
+ignore-words-list = "coefficent"
+skip = "uv.lock,bixbench_results/baseline_eval_data/*"
+
 [tool.refurb]
 enable_all = true
 ignore = [
@@ -179,7 +185,6 @@ extend-select = [
   "RUF032",
   "RUF033",
   "RUF034",
-  "RUF035",
   "RUF036",
   "RUF038",
   "RUF039",
@@ -249,7 +254,7 @@ ignore = [
   "TD002", # Don't care for TODO author
   "TD003", # Don't care for TODO links
   "TRY003", # Overly pedantic
-  "DOC202", # Overly pedantic
+  "DOC202" # Overly pedantic
 ]
 preview = true
 select = ["ALL"]
