@@ -3,8 +3,6 @@ import ast
 import asyncio
 import logging
 import os
-import sys
-from itertools import islice
 from pathlib import Path
 
 import pandas as pd
@@ -87,12 +85,6 @@ def parse_args():
     return parser.parse_args()
 
 
-def string_to_list(example):
-    example["questions"] = ast.literal_eval(example["questions"])
-    example["categories"] = ast.literal_eval(example["categories"])
-    return example
-
-
 async def evaluate(
     dataset: pd.DataFrame,
     zeroshot_agent: ZeroshotBaseline,
@@ -101,7 +93,7 @@ async def evaluate(
 ):
 
     results = []
-    for i, row in dataset.iterrows():
+    for _, row in dataset.iterrows():
         for q_dict in row["questions"]:
             query = await zeroshot_agent.generate_zeroshot_answers(
                 Query(
@@ -143,9 +135,11 @@ async def main():
     if args.local_csv is None:
         _hf_login()
         dataset = load_dataset(HF_URL)["train"].to_pandas()
-        dataset["questions"] = dataset["questions"].apply(eval)
+        dataset["questions"] = dataset["questions"].apply(ast.literal_eval)
     else:
-        dataset = pd.read_csv(args.local_csv, converters={"questions": eval})
+        dataset = pd.read_csv(
+            args.local_csv, converters={"questions": ast.literal_eval}
+        )
     if args.num_examples > 0:
         dataset = dataset.head(args.num_examples)
 
