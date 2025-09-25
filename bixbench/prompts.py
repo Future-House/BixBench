@@ -31,6 +31,15 @@ Important: You must only output one from `correct`, `incorrect` or `refused` bet
 Example Output: <grade> correct </grade>
 """  # noqa: E501
 
+OPEN_ENDED_RANGE_GRADING_PROMPT = """You are given a question, target range using the format (lower,upper) and a predicted answer. Your task is to compare the target range with the predicted and assess if the predicted answer falls within the specified range. If it falls within the range, it is correct, otherwise it is incorrect. If the predicted answer cannot be compared to the target range, it is refused to answer.
+Question: {question}
+Target Range: {target}
+Predicted Answer: {predicted}
+
+Important: You must only output one from `correct`, `incorrect` or `refused` between <grade> tags.
+Example Output: <grade> correct </grade>
+"""  # noqa: E501
+
 MCQ_EVAL_PROMPT = """
 First, carefully examine the following notebook:
 

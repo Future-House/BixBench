@@ -1,5 +1,5 @@
 from functools import cached_property
-from typing import Any, Optional
+from typing import Any, Self
 
 from aviary.core import Message
 from lmi import LiteLLMModel
@@ -21,15 +21,15 @@ class ZeroshotBaseline(BaseModel):
     temperature: float = Field(default=1.0, ge=0.0, le=2.0)
     extra_kwargs: dict[str, Any] = Field(default_factory=dict)
 
-    _llm_client: Optional[LiteLLMModel] = None
-    _query: Optional[Query] = None
+    _llm_client: LiteLLMModel | None = None
+    _query: Query | None = None
 
     class Config:
         arbitrary_types_allowed = True
         extra = "allow"
 
     @model_validator(mode="after")
-    def initialize_llm_client(self) -> "ZeroshotBaseline":
+    def initialize_llm_client(self) -> Self:
         """Initialize the LLM client after model creation."""
         config = {
             "name": self.model_name,
@@ -71,7 +71,7 @@ class ZeroshotBaseline(BaseModel):
             return OPEN_ENDED_PROMPT_TEMPLATE
         raise ValueError(f"Unknown answer mode: {self.answer_mode}")
 
-    def _prep_query(self) -> tuple[str, Any, Optional[Any]]:
+    def _prep_query(self) -> tuple[str, Any, Any | None]:
         """Generate query based on evaluation mode and parameters."""
         template = self.prompt_template
 

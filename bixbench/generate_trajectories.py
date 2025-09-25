@@ -1,5 +1,4 @@
 import argparse
-import ast
 import asyncio
 import json
 import logging
@@ -8,10 +7,10 @@ from pathlib import Path
 from typing import Any
 
 import datasets
-import litellm
 import yaml
+from aviary.core import MultipleChoiceQuestion
 from fhda.data_analysis_env import DataAnalysisEnv
-from fhda.utils import collect_notebook_stats, load_mcq
+from fhda.utils import collect_notebook_stats
 from huggingface_hub import hf_hub_download
 from ldp.agent import Agent
 from ldp.alg.rollout import RolloutManager
@@ -19,8 +18,8 @@ from ldp.data_structures import Trajectory, Transition
 from tqdm.auto import tqdm
 
 from bixbench.models import BixbenchConfig
+from bixbench.utils import as_completed_with_concurrency
 
-litellm.verbose = False
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -49,14 +48,18 @@ class TrajectoryGenerator:
     trajectories.
     """
 
-    def __init__(self, config_path=DEFAULT_CONFIG_PATH) -> None:
+    def __init__(
+        self, config_path=DEFAULT_CONFIG_PATH, replica_id: int | None = None
+    ) -> None:
         """
         Initialize the TrajectoryGenerator with config and create necessary directories.
 
         Args:
             config_path: Path to the configuration file
+            replica_id: Replica ID
         """
         self.config = self.load_config(config_path)
+        self.replica_id = replica_id
         # Create directories
         self.config.local_workspace_dir.mkdir(parents=True, exist_ok=True)
         self.config.local_trajectories_dir.mkdir(parents=True, exist_ok=True)
@@ -81,26 +84,22 @@ class TrajectoryGenerator:
         # Create and validate the config using Pydantic
         return BixbenchConfig(**config_dict)
 
-    async def process_capsule(self, capsule: dict[str, Any]) -> None:
+    async def process_capsule_data(self, zip_filename: str) -> None:
         """
-        Process a single benchmark capsule by downloading and extracting necessary files.
+        Process capsule data by downloading and extracting necessary files.
 
         Args:
-            capsule: Dictionary containing capsule information
+            zip_filename: Name of the zip file to process
         """
-        zip_filename = capsule["data_folder"]
-        extract_dir = self.config.local_data_folder / zip_filename.replace(".zip", "")
         zip_path = self.config.local_data_folder / zip_filename
-
+        extract_dir = self.config.local_data_folder / zip_filename.replace(".zip", "")
         # Check if capsule folder exists and is non-empty
         if extract_dir.exists() and any(extract_dir.iterdir()):
             logger.debug(
                 "Capsule folder %s already exists and is non-empty", extract_dir.name
             )
-            capsule["local_data_folder"] = extract_dir
             return
 
-        # Download and process if not already present
         await asyncio.to_thread(
             hf_hub_download,
             repo_id=self.config.paths.hf_repo_id,
@@ -108,23 +107,47 @@ class TrajectoryGenerator:
             local_dir=self.config.local_data_folder,
             repo_type="dataset",
         )
-
         await asyncio.to_thread(self._extract_and_process_files, zip_path, extract_dir)
-        capsule["local_data_folder"] = extract_dir
+
+    async def process_question(self, question: dict[str, Any]) -> None:
+        """
+        Process a single benchmark question by downloading and extracting necessary files.
+
+        Args:
+            question: Dictionary containing question information
+        """
+        zip_filename: str = question["data_folder"]
+        extract_dir = self.config.local_data_folder / zip_filename.replace(".zip", "")
+
+        # Check if capsule folder exists and is non-empty
+        if extract_dir.exists() and any(extract_dir.iterdir()):
+            logger.debug(
+                "Question folder %s already exists and is non-empty", extract_dir.name
+            )
+            question["local_data_folder"] = extract_dir
+            return
+
+        # Download and process if not already present
+        await self.process_capsule_data(zip_filename)
+
+        question["local_data_folder"] = extract_dir
 
     async def load_bixbench(self) -> list[dict[str, Any]]:
         """
-        Load BixBench dataset and process all capsules.
+        Load BixBench dataset and process all questions.
 
         Returns:
-            List[Dict[str, Any]]: List of processed benchmark capsules
+            List[Dict[str, Any]]: List of processed benchmark questions
         """
-        bixbench = datasets.load_dataset(
-            self.config.paths.hf_repo_id, split="train"
-        ).to_list()
+        bixbench = datasets.load_dataset(self.config.paths.hf_repo_id, split=self.config.dataset_split).to_list()  # type: ignore[attr-defined]
 
-        # Process all capsules concurrently
-        tasks = [self.process_capsule(capsule) for capsule in bixbench]
+        # Process all capsule data concurrently
+        zip_filenames = {question["data_folder"] for question in bixbench}
+        tasks = [self.process_capsule_data(zip_fname) for zip_fname in zip_filenames]
+        await asyncio.gather(*tasks)
+
+        # Prepare all questions concurrently
+        tasks = [self.process_question(question) for question in bixbench]
         await asyncio.gather(*tasks)
 
         return bixbench
@@ -166,17 +189,21 @@ class TrajectoryGenerator:
                 ),
                 None,
             )
-            shutil.rmtree(notebook_folder)
+            if notebook_folder is not None:
+                shutil.rmtree(notebook_folder)
         except StopIteration:
             # No Notebook folder found, that's okay
-            pass
+            logger.debug("No Notebook folder found")
 
         # Remove any .ipynb files in the extract directory
         for ipynb_file in extract_dir.glob("*.ipynb"):
             ipynb_file.unlink()
 
         # Remove the zip file
-        zip_path.unlink()
+        try:
+            zip_path.unlink()
+        except FileNotFoundError:
+            logger.debug("Zip file not found")
 
     async def store_trajectory(
         self, trajectory: Trajectory, env: DataAnalysisEnv
@@ -188,68 +215,95 @@ class TrajectoryGenerator:
             trajectory: The trajectory to store
             env: The environment that generated the trajectory
         """
+        metadata = (
+            {k: v for k, v in env.metadata.items() if k != "local_data_folder"}
+            if env.metadata
+            else {}
+        )
+        mcqs = metadata.pop("mcqs", [])
+        mcq_options = mcqs[0].options if mcqs else []
+        mcq_question = mcqs[0].question if mcqs else ""
+        refusal_option = mcqs[0].unsure_answer_letter if mcqs else None
+
         extract = {
             "problem_id": env.problem_id,
             "agent_answer": env.state.answer,
             "ideal_answer": env.answer,
             "problem": env.problem,
-            "mcq_options": [q.options for q in env.mcqs] if env.mcqs else [],
-            "mcq_question": [q.question for q in env.mcqs] if env.mcqs else [],
+            "mcq_options": mcq_options,
+            "mcq_question": mcq_question,
             "notebook_stats": collect_notebook_stats(env.state.nb),
             "num_actions": len(env.state.actions),
             "question_format": self.config.capsule.mode,
             "refusal_option": self.config.capsule.include_refusal_option,
             "model": self.config.agent.agent_kwargs["llm_model"]["name"],
             # Local data folder is not serializable
-            "metadata": {
-                k: v for k, v in env.metadata.items() if k != "local_data_folder"
-            },
-            "refusal_options": {
-                q.question_id: q.unsure_answer_letter for q in (env.mcqs or [])
-            },
+            "metadata": metadata,
+            "refusal_options": refusal_option,
             "nb": env.state.nb,
             "run_name": self.config.run_name,
         }
 
-        # Download run metadata
-        with (self.config.local_trajectories_dir / f"{env.problem_id}.json").open(
-            "w"
-        ) as f:
-            json.dump(
-                extract,
-                f,
-                indent=4,
-            )
-        # Download run trajectory
+        # Store trajectory metadata
+        filename = self.get_trajectory_path(env.problem_id)
+        with filename.open("w") as f:
+            json.dump(extract, f, indent=4)
+        # Store trajectory
         await trajectory.to_jsonl(
-            self.config.local_trajectories_dir / f"{env.problem_id}.jsonl"
+            self.config.local_trajectories_dir
+            / str(filename).replace(".json", ".jsonl")
         )
 
-    def environment_factory(self, capsule: dict[str, Any]) -> DataAnalysisEnv:
-        """
-        Create a DataAnalysisEnv instance from a capsule.
+    def get_trajectory_path(self, problem_id: str) -> Path:
+        """Get the path to the trajectory for a given problem ID.
 
         Args:
-            capsule: Dictionary containing capsule information
+            problem_id: The problem ID
+
+        Returns:
+            Path: The path to the trajectory
+        """
+        if self.replica_id is not None:
+            return (
+                self.config.local_trajectories_dir
+                / f"{problem_id}_replica_{self.replica_id}.json"
+            )
+        return self.config.local_trajectories_dir / f"{problem_id}.json"
+
+    def environment_factory(self, question: dict[str, Any]) -> DataAnalysisEnv:
+        """
+        Create a DataAnalysisEnv instance from a question.
+
+        Args:
+            question: Dictionary containing question information
 
         Returns:
             DataAnalysisEnv: Initialized environment
         """
-        raw_questions = ast.literal_eval(capsule["questions"])
-        processed_questions = [
-            load_mcq(i, open_question=True, question_id=i["id"]) for i in raw_questions
-        ]
-        problem = self.config.base_prompt.format(
-            questions="\n-------\n".join(
-                [i.question_prompt for i in processed_questions]
-            )
+        processed_question = load_mcq(
+            question, open_question=True, question_id=question["question_id"]
         )
-        answer = {i.question_id: i.ideal_answer for i in processed_questions}
-        work_dir = (self.config.local_workspace_dir / capsule["uuid"]).absolute()
+        question["mcqs"] = [processed_question]
+
+        language = self.config.notebook.language
+        problem = self.config.base_prompt.format(
+            question=question["question"], language=language
+        )
+        answer = question["ideal"]
+        question_id = question["question_id"]
+        if self.replica_id is not None:
+            question_id = f"{question_id}_replica_{self.replica_id}"
+        work_dir = (
+            self.config.local_workspace_dir
+            / self.config.run_name
+            / question["capsule_uuid"]
+            / question_id
+        ).absolute()
         work_dir.mkdir(parents=True, exist_ok=True)
-        local_capsule_data_path = self.config.local_data_folder / capsule[
+        local_capsule_data_path = self.config.local_data_folder / question[
             "data_folder"
         ].replace(".zip", "")
+
         # Copy all files from data folder to work directory
         for item in local_capsule_data_path.iterdir():
             if item.is_file():
@@ -259,20 +313,19 @@ class TrajectoryGenerator:
         nb_path = work_dir / self.config.notebook.name
 
         # Add some extra metadata from config
-        capsule["avoid_images"] = self.config.capsule.avoid_images
-        capsule["include_refusal_option"] = self.config.capsule.include_refusal_option
+        question["avoid_images"] = self.config.capsule.avoid_images
+        question["include_refusal_option"] = self.config.capsule.include_refusal_option
 
         env_args = {
-            "problem_id": capsule["short_id"],
+            "problem_id": question["question_id"],
             "problem": problem,
             "eval_mode": self.config.capsule.eval_mode,
             "nb_path": nb_path,
             "work_dir": work_dir,
             "language": self.config.notebook.language,
             "system_prompt": self.config.system_prompt,
-            "metadata": capsule,
+            "metadata": question,
             "answer": answer,
-            "mcqs": processed_questions,
             "use_tmp_work_dir": False,
         }
 
@@ -280,7 +333,7 @@ class TrajectoryGenerator:
 
     async def custom_rollout(
         self, agent: Agent, environment: DataAnalysisEnv
-    ) -> Trajectory:
+    ) -> tuple[Trajectory, DataAnalysisEnv]:
         """
         Custom implementation of rollout logic.
 
@@ -341,7 +394,7 @@ class TrajectoryGenerator:
 
     async def batch_rollout(
         self, list_of_environments: list[DataAnalysisEnv]
-    ) -> list[Trajectory | tuple[Trajectory, DataAnalysisEnv]]:
+    ) -> list[tuple[Trajectory, DataAnalysisEnv]]:
         """
         Run rollouts for a batch of environments.
 
@@ -359,12 +412,7 @@ class TrajectoryGenerator:
                 environments=list_of_environments,
                 max_steps=self.config.rollout.max_steps,
             )
-            return [
-                (trajectory, environment)
-                for trajectory, environment in zip(
-                    trajectories, list_of_environments, strict=True
-                )
-            ]
+            return list(zip(trajectories, list_of_environments, strict=True))
 
         agent = self.config.agent_config.construct_agent()
         rollout_manager = getattr(self, f"{self.config.rollout.rollout_type}_rollout")
@@ -376,31 +424,65 @@ class TrajectoryGenerator:
             ]
         )
 
+    def filter_completed(self, bixbench: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Filter out completed trajectories."""
+        return [
+            question
+            for question in bixbench
+            if not self.get_trajectory_path(question["question_id"]).exists()
+        ]
+
+    async def rollout_with_saving(
+        self, environment: DataAnalysisEnv
+    ) -> list[tuple[Trajectory, DataAnalysisEnv]]:
+        trajectory, env = await self.vanilla_rollout(
+            self.config.agent_config.construct_agent(), environment
+        )
+        await self.store_trajectory(trajectory, env)
+        return trajectory, env
+
     async def run(self) -> None:
         """Run the full trajectory generation pipeline."""
         logger.info("Loading BixBench dataset...")
         bixbench = await self.load_bixbench()
 
-        # Process environments in batches with tqdm progress bar
-        total_batches = (
-            len(bixbench) + self.config.rollout.batch_size - 1
-        ) // self.config.rollout.batch_size
+        if self.config.rollout.skip_existing_trajectories:
+            bixbench = self.filter_completed(bixbench)
 
+        # Process environments in batches with tqdm progress bar
         with tqdm(total=len(bixbench), desc="Processing benchmark tasks") as pbar:
             for i in range(0, len(bixbench), self.config.rollout.batch_size):
-                batch = bixbench[i : i + self.config.rollout.batch_size]
-                environments = [self.environment_factory(capsule) for capsule in batch]
-                results = await self.batch_rollout(environments)
-                for trajectory, env in results:
-                    await self.store_trajectory(trajectory, env)
-
-                # Update progress bar
-                pbar.update(len(batch))
-                pbar.set_postfix(
-                    {
-                        "batch": f"{i // self.config.rollout.batch_size + 1}/{total_batches}"
-                    }
+                bsz = min(self.config.rollout.batch_size, len(bixbench) - i)
+                batch = bixbench[i : i + (4 * bsz)]
+                environments = (
+                    self.environment_factory(question) for question in batch
                 )
+                rollouts = (self.rollout_with_saving(env) for env in environments)
+                try:
+                    async for _ in as_completed_with_concurrency(
+                        rollouts, bsz, timeout=3600
+                    ):
+                        pbar.update(1)
+                except TimeoutError:
+                    logger.warning("Timeout occurred while rolling out environments")
+                    continue
+        logger.info("Completed trajectory generation")
+
+
+def load_mcq(
+    mcq: dict, open_question: bool = False, question_id: str | None = None
+) -> MultipleChoiceQuestion:
+    return MultipleChoiceQuestion(
+        question=mcq["question"],
+        options=[
+            mcq["ideal"],
+            *mcq["distractors"],
+        ],
+        ideal_answer=mcq["ideal"],
+        shuffle_seed=MultipleChoiceQuestion.SEED_USING_QUESTION,
+        prompt_without_options=open_question,
+        question_id=question_id or "Q",
+    )
 
 
 if __name__ == "__main__":
@@ -413,7 +495,13 @@ if __name__ == "__main__":
         default=str(DEFAULT_CONFIG_PATH),
         help="Path to the configuration YAML file",
     )
+    parser.add_argument(
+        "--replica_id",
+        type=int,
+        default=None,
+        help="Replica ID",
+    )
     args = parser.parse_args()
 
-    generator = TrajectoryGenerator(args.config_file)
+    generator = TrajectoryGenerator(args.config_file, args.replica_id)
     asyncio.run(generator.run())

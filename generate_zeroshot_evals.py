@@ -1,9 +1,9 @@
 import argparse
-import ast
 import asyncio
 import logging
 import os
 from pathlib import Path
+from typing import cast
 
 import pandas as pd
 from datasets import load_dataset
@@ -69,7 +69,7 @@ def parse_args():
 
     # used for testing purposes
     parser.add_argument(
-        "--num_examples",
+        "--num-examples",
         type=int,
         default=-1,
         help="Number of examples to evaluate. Default is -1 for all examples",
@@ -82,6 +82,11 @@ def parse_args():
     parser.add_argument(
         "--output-file", type=str, default=None, help="Output file name (optional)"
     )
+    parser.add_argument(
+        "--dataset-split",
+        default="train",
+        help="Dataset split to evaluate. Default is 'test'",
+    )
     return parser.parse_args()
 
 
@@ -91,27 +96,25 @@ async def evaluate(
     output_dir: str = "results",
     output_file: str | None = None,
 ):
-
     results = []
     for _, row in dataset.iterrows():
-        for q_dict in row["questions"]:
-            query = await zeroshot_agent.generate_zeroshot_answers(
-                Query(
-                    id=row["uuid"],
-                    question=q_dict["question"],
-                    target=q_dict["ideal_answer"],
-                    choices=[q_dict[f"distractor_{j}"] for j in range(1, 4)],
-                    evaluation_mode=q_dict.get("eval_method", None),
-                )
+        query = await zeroshot_agent.generate_zeroshot_answers(
+            Query(
+                id=row["question_id"],
+                question=row["question"],
+                target=row["ideal"],
+                choices=row["distractors"],
+                evaluation_mode=row.get("eval_mode", None),
             )
+        )
 
-            result_dict = {
-                "uuid": query.id,
-                "question": query.question,
-                "predicted": query.predicted,
-                "target": query.target,
-                "unsure": query.unsure,
-            }
+        result_dict = {
+            "uuid": query.id,
+            "question": query.question,
+            "predicted": query.predicted,
+            "target": query.target,
+            "unsure": query.unsure,
+        }
 
         if query.evaluation_mode is not None:
             result_dict["evaluation_mode"] = query.evaluation_mode
@@ -122,6 +125,7 @@ async def evaluate(
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
+    assert output_file is not None
     output_path = os.path.join(output_dir, output_file)
     pd.DataFrame(results).to_csv(output_path, index=False)
 
@@ -136,12 +140,10 @@ async def main():
     )
     if args.local_csv is None:
         _hf_login()
-        dataset = load_dataset(HF_URL)["train"].to_pandas()
-        dataset["questions"] = dataset["questions"].apply(ast.literal_eval)
+        dataset = load_dataset(HF_URL)[args.dataset_split].to_pandas()  # type: ignore[index]
     else:
-        dataset = pd.read_csv(
-            args.local_csv, converters={"questions": ast.literal_eval}
-        )
+        dataset = pd.read_csv(args.local_csv)
+    dataset = cast("pd.DataFrame", dataset)
     if args.num_examples > 0:
         dataset = dataset.head(args.num_examples)
 
