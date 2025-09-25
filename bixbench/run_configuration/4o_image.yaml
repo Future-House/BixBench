@@ -1,0 +1,34 @@
+agent:
+  agent_type: SimpleAgent
+  agent_kwargs:
+    llm_model:
+      parallel_tool_calls: false
+      num_retries: 5
+      temperature: 1.0
+      name: gpt-4o
+    hide_old_env_states: true
+rollout:
+  max_steps: 20
+  batch_size: 24
+  rollout_type: aviary
+notebook:
+  name: notebook.ipynb
+  language: python
+  use_docker: true
+capsule:
+  prompt_templates:
+    mcq: MCQ_PROMPT_TEMPLATE
+    open: OPEN_PROMPT_TEMPLATE
+    hypothesis: HYPOTHESIS_PROMPT_TEMPLATE
+  eval_mode: null
+  mode: open
+  include_refusal_option: true
+  avoid_images: false
+  system_prompt: CAPSULE_SYSTEM_PROMPT_OPEN
+paths:
+  workspace_dir: data/workspace
+  trajectories_dir: bixbench-v2_results/trajectories
+  data_folder: data/capsules
+  hf_repo_id: futurehouse/BixBench
+dataset_split: train
+run_name: 4o_image
