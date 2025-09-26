@@ -1,9 +1,9 @@
-data_path: "bixbench-v2_results/trajectories/"
-results_dir: "bixbench-v2_results"
+data_path: "bixbench-v1.5_results/trajectories/"
+results_dir: "bixbench-v1.5_results"
 debug: true
 
 replicate_paper_results:
-  run: true
+  run: false
   # from_trajectories: true  # Process from trajectories, not pre-computed eval_df
   from_trajectories: false  # Process from trajectories, not pre-computed eval_df
 

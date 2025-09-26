@@ -27,7 +27,7 @@ capsule:
   system_prompt: CAPSULE_SYSTEM_PROMPT_OPEN
 paths:
   workspace_dir: data/workspace
-  trajectories_dir: bixbench-v2_results/trajectories
+  trajectories_dir: bixbench-v1.5_results/trajectories
   data_folder: data/capsules
   hf_repo_id: futurehouse/BixBench
 dataset_split: train
