@@ -3,13 +3,12 @@ results_dir: "bixbench-v1.5_results"
 debug: true
 
 replicate_paper_results:
-  run: false
-  # from_trajectories: true  # Process from trajectories, not pre-computed eval_df
+  run: true
   from_trajectories: false  # Process from trajectories, not pre-computed eval_df
 
 majority_vote:
   run: true
-  k_value: 10
+  k_value: 5
   groups:
     image_comparison:
       - "claude_image_mcq_with_refusal"
