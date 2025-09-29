@@ -205,6 +205,7 @@ bash scripts/run_zeroshot.sh
 ```
 
 This script will:
+
 1. **Generate zero-shot answers** for both GPT-4o and Claude-3.5-Sonnet across three answer modes:
    - Open-ended questions
    - Multiple choice questions (MCQ) with refusal option
@@ -221,11 +222,13 @@ bash scripts/run_agentic.sh
 ```
 
 **⚠️ Warning**: This script runs resource-intensive evaluations that will:
+
 - Execute 5 replicas for each configuration (GPT-4o and Claude, with/without image support)
 - Take approximately 24-48 hours to complete
 - Require significant API costs for both OpenAI and Anthropic
 
 The script includes:
+
 - **Multiple model configurations**: 4o_image, 4o_no_image, claude_image, claude_no_image
 - **Replica management**: Automatically runs 5 replicas per configuration for statistical robustness and majority vote analysis
 - **Progress tracking**: Real-time status updates and error handling
@@ -239,6 +242,7 @@ The script includes:
 For the latest BixBench v1.5 results using the enhanced 205-question dataset, use the automated scripts or the v1.5 configuration:
 
 #### Quick Reproduction
+
 ```bash
 # Complete reproduction using automation scripts
 bash scripts/run_zeroshot.sh  # Zero-shot baselines
@@ -246,12 +250,14 @@ bash scripts/run_agentic.sh   # Agentic evaluations (24-48 hours)
 ```
 
 #### Manual v1.5 Reproduction
+
 ```bash
 # Generate v1.5 results
 python bixbench/postprocessing.py --config_file bixbench/run_configuration/v1.5_paper_results.yaml
 ```
 
 The v1.5 configuration includes:
+
 - **Enhanced majority vote analysis** with k=5 replicas
 - **Image comparison analysis** (with/without image support)
 - **Refusal option comparison** (with/without refusal options in MCQs)
@@ -278,11 +284,13 @@ python bixbench/postprocessing.py --config_file bixbench/run_configuration/bixbe
 The evaluation process will generate the following comparative visualizations:
 
 **v1.5 Results:**
+
 - `bixbench-v1.5_results/bixbench_results_comparison.png` - Overall performance comparison
 - `bixbench-v1.5_results/majority_vote_accuracy_refusal_option_comparison.png` - MCQ with/without refusal analysis
 - `bixbench-v1.5_results/majority_vote_accuracy_image_comparison.png` - Image support comparison
 
 **Original Results:**
+
 - `bixbench_results/bixbench_results_comparison.png` - Original performance comparison
 - `bixbench_results/majority_vote_accuracy_refusal_option_comparison.png` - Original majority vote analysis
 
