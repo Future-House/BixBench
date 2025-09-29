@@ -53,7 +53,7 @@ bix-19-q4,What is the F-statistic for the interaction between Hemisphere and Sex
 bix-19-q5,"What minimum sample size per group would be required to detect a statistically significant difference in NeuN counts between KD and CTRL groups, given the observed effect size and desired power of 0.8?","
 Based on standard power analysis calculations for a two-sample t-test with:
 - Power = 0.8
-- Alpha = 0.05 
+- Alpha = 0.05
 - Effect size = medium to large (assuming d = 0.8-1.0)
 The minimum sample size needed would be approximately 15-20 animals per group (KD and CTRL) to reliably detect statistically significant differences in NeuN counts. This assumes normal distribution and equal variances between groups.
 ",337 samples,,llm_verifier,0,False,False

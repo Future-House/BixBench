@@ -4,7 +4,7 @@ debug: true
 
 replicate_paper_results:
   run: true
-  from_trajectories: false  # Process from trajectories, not pre-computed eval_df
+  from_trajectories: false # Process from trajectories, not pre-computed eval_df
 
 majority_vote:
   run: true
@@ -40,9 +40,9 @@ run_comparison:
     - "claude"
   use_zero_shot_baselines: true
   random_baselines:
-    - null     # For open-ended (no random baseline)
-    - 0.2      # For MCQ with refusal (1/5 chance)
-    - 0.25     # For MCQ without refusal (1/4 chance)
+    - null # For open-ended (no random baseline)
+    - 0.2 # For MCQ with refusal (1/5 chance)
+    - 0.25 # For MCQ without refusal (1/4 chance)
   baseline_name_mappings:
     "gpt-4o-grader-openended": "4o_image_open"
     "claude-3-5-sonnet-latest-grader-openended": "claude_image_open"

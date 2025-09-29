@@ -1,50 +1,50 @@
 {
-    "gpt-4o-grader-mcq-refusal-False": {
-        "accuracy": 0.36097560975609755,
-        "precision": 0.36097560975609755,
-        "coverage": 1.0,
-        "n_total": 205,
-        "n_correct": 74,
-        "n_sure": 205
-    },
-    "gpt-4o-grader-mcq-refusal-True": {
-        "accuracy": 0.03902439024390244,
-        "precision": 0.4,
-        "coverage": 0.0975609756097561,
-        "n_total": 205,
-        "n_correct": 8,
-        "n_sure": 20
-    },
-    "claude-3-5-sonnet-latest-grader-mcq-refusal-True": {
-        "accuracy": 0.08292682926829269,
-        "precision": 0.38636363636363635,
-        "coverage": 0.2146341463414634,
-        "n_total": 205,
-        "n_correct": 17,
-        "n_sure": 44
-    },
-    "claude-3-5-sonnet-latest-grader-mcq-refusal-False": {
-        "accuracy": 0.34146341463414637,
-        "precision": 0.34146341463414637,
-        "coverage": 1.0,
-        "n_total": 205,
-        "n_correct": 70,
-        "n_sure": 205
-    },
-    "gpt-4o-grader-openended": {
-        "accuracy": 0.02926829268292683,
-        "precision": 0.02926829268292683,
-        "coverage": 1.0,
-        "n_total": 205,
-        "n_correct": 6,
-        "n_sure": 205
-    },
-    "claude-3-5-sonnet-latest-grader-openended": {
-        "accuracy": 0.02926829268292683,
-        "precision": 0.02926829268292683,
-        "coverage": 1.0,
-        "n_total": 205,
-        "n_correct": 6,
-        "n_sure": 205
-    }
+  "gpt-4o-grader-mcq-refusal-False": {
+    "accuracy": 0.36097560975609755,
+    "precision": 0.36097560975609755,
+    "coverage": 1.0,
+    "n_total": 205,
+    "n_correct": 74,
+    "n_sure": 205
+  },
+  "gpt-4o-grader-mcq-refusal-True": {
+    "accuracy": 0.03902439024390244,
+    "precision": 0.4,
+    "coverage": 0.0975609756097561,
+    "n_total": 205,
+    "n_correct": 8,
+    "n_sure": 20
+  },
+  "claude-3-5-sonnet-latest-grader-mcq-refusal-True": {
+    "accuracy": 0.08292682926829269,
+    "precision": 0.38636363636363635,
+    "coverage": 0.2146341463414634,
+    "n_total": 205,
+    "n_correct": 17,
+    "n_sure": 44
+  },
+  "claude-3-5-sonnet-latest-grader-mcq-refusal-False": {
+    "accuracy": 0.34146341463414637,
+    "precision": 0.34146341463414637,
+    "coverage": 1.0,
+    "n_total": 205,
+    "n_correct": 70,
+    "n_sure": 205
+  },
+  "gpt-4o-grader-openended": {
+    "accuracy": 0.02926829268292683,
+    "precision": 0.02926829268292683,
+    "coverage": 1.0,
+    "n_total": 205,
+    "n_correct": 6,
+    "n_sure": 205
+  },
+  "claude-3-5-sonnet-latest-grader-openended": {
+    "accuracy": 0.02926829268292683,
+    "precision": 0.02926829268292683,
+    "coverage": 1.0,
+    "n_total": 205,
+    "n_correct": 6,
+    "n_sure": 205
+  }
 }
