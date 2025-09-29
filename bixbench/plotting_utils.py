@@ -70,7 +70,9 @@ def majority_vote_accuracy_by_k(
     plt.xticks(k_values, fontsize=18)
     plt.gca().yaxis.set_major_formatter(ticker.FormatStrFormatter("%.2f"))
 
-    for i, (baseline, label) in enumerate(zip(random_baselines, random_baselines_labels, strict=True)):
+    for i, (baseline, label) in enumerate(
+        zip(random_baselines, random_baselines_labels, strict=True)
+    ):
         plt.axhline(
             y=baseline,
             color="red" if i == 0 else "green",
@@ -227,11 +229,17 @@ def draw_model_bars(
             mean = results[run_name]["mean"]
             ci_low = results[run_name]["ci_low"]
             ci_high = results[run_name]["ci_high"]
-            yerr = np.array([
-                [mean - ci_low],
-                [ci_high - mean],
-            ])
-            label, color = next([group, color] for group, color in color_map.items() if group in run_name)
+            yerr = np.array(
+                [
+                    [mean - ci_low],
+                    [ci_high - mean],
+                ]
+            )
+            label, color = next(
+                [group, color]
+                for group, color in color_map.items()
+                if group in run_name
+            )
             xpos = x_axis[group_idx] + j * bar_width
             plt.bar(
                 xpos,
