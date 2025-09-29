@@ -57,8 +57,8 @@ run_expt = 'scripts.configurable:_run_expt'
 [tool.codespell]
 check-filenames = true
 check-hidden = true
-ignore-words-list = "coefficent"
-skip = "uv.lock,bixbench_results/baseline_eval_data/*"
+ignore-words-list = "coefficent,LasR"
+skip = "uv.lock,bixbench_results/baseline_eval_data/*,bixbench-v1.5_results/*"
 
 [tool.refurb]
 enable_all = true
