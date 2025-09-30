@@ -36,7 +36,6 @@ This repository enables three separate functions:
 - [Agentic Evaluations](#agentic-evaluations)
 - [Using Your Own Agent](#using-your-own-agent)
 - [Zero-shot Evaluations & Grading](#zero-shot-evaluations--grading)
-- [Automated Evaluation Scripts](#automated-evaluation-scripts)
 - [Replicating the BixBench Paper Results](#replicating-the-bixbench-paper-results)
 - [Acknowledgments](#acknowledgments)
 
@@ -192,49 +191,6 @@ python grade_outputs.py \
     --answer-mode "mcq"
 ```
 
-## Automated Evaluation Scripts
-
-For v1.5 of BixBench, we provide comprehensive automation scripts that handle the complete evaluation pipeline, including support for running multiple replicas to replicate the BixBench paper results.
-
-### Zero-shot Evaluation Script
-
-The `scripts/run_zeroshot.sh` script automates the entire zero-shot evaluation process:
-
-```bash
-bash scripts/run_zeroshot.sh
-```
-
-This script will:
-
-1. **Generate zero-shot answers** for both GPT-4o and Claude-3.5-Sonnet across three answer modes:
-   - Open-ended questions
-   - Multiple choice questions (MCQ) with refusal option
-   - Multiple choice questions (MCQ) without refusal option
-2. **Grade all responses** using appropriate graders (LLM-based for open-ended, exact match for MCQs)
-3. **Aggregate results** into a unified JSON file for analysis
-
-### Agentic Evaluation Script
-
-The `scripts/run_agentic.sh` script handles complete agentic evaluations with replica support:
-
-```bash
-bash scripts/run_agentic.sh
-```
-
-**⚠️ Warning**: This script runs resource-intensive evaluations that will:
-
-- Execute 5 replicas for each configuration (GPT-4o and Claude, with/without image support)
-- Take approximately 24-48 hours to complete
-- Require significant API costs for both OpenAI and Anthropic
-
-The script includes:
-
-- **Multiple model configurations**: 4o_image, 4o_no_image, claude_image, claude_no_image
-- **Replica management**: Automatically runs 5 replicas per configuration for statistical robustness and majority vote analysis
-- **Progress tracking**: Real-time status updates and error handling
-- **Directory management**: Automatic creation of `bixbench-v1.5_results/` structure
-- **Automatic postprocessing**: Generates all comparison plots and analysis files
-
 ## Replicating the BixBench Paper Results
 
 ### v1.5 Results (Latest)
@@ -258,7 +214,7 @@ python bixbench/postprocessing.py --config_file bixbench/run_configuration/v1.5_
 
 The v1.5 configuration includes:
 
-- **Enhanced majority vote analysis** with k=5 replicas
+- **Majority vote analysis** with k=5 replicas
 - **Image comparison analysis** (with/without image support)
 - **Refusal option comparison** (with/without refusal options in MCQs)
 - **Zero-shot baseline integration** for comprehensive model comparison
@@ -285,9 +241,10 @@ The evaluation process will generate the following comparative visualizations:
 
 **v1.5 Results:**
 
-- `bixbench-v1.5_results/bixbench_results_comparison.png` - Overall performance comparison
-- `bixbench-v1.5_results/majority_vote_accuracy_refusal_option_comparison.png` - MCQ with/without refusal analysis
-- `bixbench-v1.5_results/majority_vote_accuracy_image_comparison.png` - Image support comparison
+You will see the following figures from the paper:
+![Performance Comparison](bixbench-v1.5_results/bixbench_results_comparison.png)
+
+![Majority Vote Accuracy](bixbench-v1.5_results/majority_vote_accuracy_refusal_option_comparison.png)
 
 **Original Results:**
 
