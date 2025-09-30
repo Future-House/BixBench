@@ -11,7 +11,7 @@ dependencies = [
   "aiofiles",
   "datasets",
   "fhaviary[server] >= 0.18.0",
-  "fhda @ git+https://github.com/Future-House/data-analysis-crow@v1.0.0",
+  "fhda @ git+https://github.com/Future-House/data-analysis-crow@v1.5.0",
   "fhlmi",
   "google-auth",
   "google-cloud-secret-manager",

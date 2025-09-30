@@ -116,6 +116,24 @@ wheels = [
 ]
 
 [[package]]
+name = "anthropic"
+version = "0.52.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "anyio" },
+    { name = "distro" },
+    { name = "httpx" },
+    { name = "jiter" },
+    { name = "pydantic" },
+    { name = "sniffio" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/63/84/95126ee8df1acedd60bd03fe368d6335d65fe92e2c97581a81a82e8f576b/anthropic-0.52.2.tar.gz", hash = "sha256:9047bc960e8513950579c9cb730c16a84af3fcb56341ad7dc730772f83757050", size = 306204, upload-time = "2025-06-02T11:27:59.308Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/77/3b/6f67f4e061d73cfaffc44dd41cbbe8b09efe1ec37b8135a2bcc043736d62/anthropic-0.52.2-py3-none-any.whl", hash = "sha256:00d52555f503e81e21aff0103db04cd93979cdf87ce8dd43c660ca6deae83ac6", size = 286262, upload-time = "2025-06-02T11:27:57.536Z" },
+]
+
+[[package]]
 name = "anyio"
 version = "4.8.0"
 source = { registry = "https://pypi.org/simple" }
@@ -528,24 +546,6 @@ wheels = [
 ]
 
 [[package]]
-name = "crow-client"
-version = "0.3.5"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "cloudpickle" },
-    { name = "fhaviary" },
-    { name = "httpx" },
-    { name = "ldp" },
-    { name = "pydantic", extra = ["email"] },
-    { name = "python-dotenv" },
-    { name = "tenacity" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/87/a6/a1b449c7e18fa48b03cd610550356019f9841a9c7a041ca1923f374562dc/crow_client-0.3.5.tar.gz", hash = "sha256:ee5457a37e5e41c40e8450b73750163d36e6bb33508553f602557331faab84a2", size = 170567, upload-time = "2025-02-26T22:47:19.149Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/3e/6a/a15ffec54587915eae641d1618e8867573eb1dfb79bbb60db1a20dccb0f7/crow_client-0.3.5-py3-none-any.whl", hash = "sha256:c9d0e3d950ef32f368f08c94944de89343e1e33e32cb97554f9da0bc0abd033b", size = 19955, upload-time = "2025-02-26T22:47:17.163Z" },
-]
-
-[[package]]
 name = "cycler"
 version = "0.12.1"
 source = { registry = "https://pypi.org/simple" }
@@ -679,34 +679,12 @@ wheels = [
 ]
 
 [[package]]
-name = "dnspython"
-version = "2.7.0"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/b5/4a/263763cb2ba3816dd94b08ad3a33d5fdae34ecb856678773cc40a3605829/dnspython-2.7.0.tar.gz", hash = "sha256:ce9c432eda0dc91cf618a5cedf1a4e142651196bbcd2c80e89ed5a907e5cfaf1", size = 345197, upload-time = "2024-10-05T20:14:59.362Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/68/1b/e0a87d256e40e8c888847551b20a017a6b98139178505dc7ffb96f04e954/dnspython-2.7.0-py3-none-any.whl", hash = "sha256:b4c34b7d10b51bcc3a5071e7b8dee77939f1e878477eeecc965e9835f63c6c86", size = 313632, upload-time = "2024-10-05T20:14:57.687Z" },
-]
-
-[[package]]
 name = "docstring-parser"
 version = "0.16"
 source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/08/12/9c22a58c0b1e29271051222d8906257616da84135af9ed167c9e28f85cb3/docstring_parser-0.16.tar.gz", hash = "sha256:538beabd0af1e2db0146b6bd3caa526c35a34d61af9fd2887f3a8a27a739aa6e", size = 26565, upload-time = "2024-03-15T10:39:44.419Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/d5/7c/e9fcff7623954d86bdc17782036cbf715ecab1bec4847c008557affe1ca8/docstring_parser-0.16-py3-none-any.whl", hash = "sha256:bf0a1387354d3691d102edef7ec124f219ef639982d096e26e3b60aeffa90637", size = 36533, upload-time = "2024-03-15T10:39:41.527Z" },
-]
-
-[[package]]
-name = "email-validator"
-version = "2.2.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "dnspython" },
-    { name = "idna" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/48/ce/13508a1ec3f8bb981ae4ca79ea40384becc868bfae97fd1c942bb3a001b1/email_validator-2.2.0.tar.gz", hash = "sha256:cb690f344c617a714f22e66ae771445a1ceb46821152df8e165c5f9a364582b7", size = 48967, upload-time = "2024-06-20T11:30:30.034Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/d7/ee/bf0adb559ad3c786f12bcbc9296b3f5675f529199bef03e2df281fa1fadb/email_validator-2.2.0-py3-none-any.whl", hash = "sha256:561977c2d73ce3611850a06fa56b414621e0c8faa9d66f2611407d87465da631", size = 33521, upload-time = "2024-06-20T11:30:28.248Z" },
 ]
 
 [[package]]
@@ -814,7 +792,7 @@ requires-dist = [
     { name = "black", marker = "extra == 'dev'" },
     { name = "datasets" },
     { name = "fhaviary", extras = ["server"], specifier = ">=0.18.0" },
-    { name = "fhda", git = "https://github.com/Future-House/data-analysis-crow?rev=v1.0.0" },
+    { name = "fhda", git = "https://github.com/Future-House/data-analysis-crow?rev=v1.5.0" },
     { name = "fhlmi" },
     { name = "google-auth" },
     { name = "google-cloud-secret-manager" },
@@ -847,13 +825,14 @@ provides-extras = ["dev"]
 
 [[package]]
 name = "fhda"
-version = "0.0.1"
-source = { git = "https://github.com/Future-House/data-analysis-crow?rev=v1.0.0#e13b7728c76217a2ca8bb422733e08869b41d863" }
+version = "1.0.0"
+source = { git = "https://github.com/Future-House/data-analysis-crow?rev=v1.5.0#953a6b13c5f8e15354525bca08636f620994f954" }
 dependencies = [
     { name = "aiodocker" },
     { name = "aiofiles" },
-    { name = "crow-client" },
+    { name = "anthropic" },
     { name = "fhaviary", extra = ["server"] },
+    { name = "futurehouse-client" },
     { name = "google-auth" },
     { name = "google-cloud-secret-manager" },
     { name = "google-cloud-storage" },
@@ -865,10 +844,7 @@ dependencies = [
     { name = "notebook" },
     { name = "numpy" },
     { name = "pandas" },
-    { name = "scikit-learn" },
-    { name = "scipy" },
     { name = "seaborn" },
-    { name = "statsmodels" },
 ]
 
 [[package]]
@@ -982,6 +958,26 @@ wheels = [
 [package.optional-dependencies]
 http = [
     { name = "aiohttp" },
+]
+
+[[package]]
+name = "futurehouse-client"
+version = "0.3.19"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "cloudpickle" },
+    { name = "fhaviary" },
+    { name = "httpx" },
+    { name = "ldp" },
+    { name = "litellm" },
+    { name = "pydantic" },
+    { name = "python-dotenv" },
+    { name = "tenacity" },
+    { name = "tqdm" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/40/61/329d773220df70b5103ec487db6a38c03d6ae2f58bcaeebd98ff34fef42c/futurehouse_client-0.3.19.tar.gz", hash = "sha256:cc5adf2023f64e15b24ffce2e3cceb0db064332edeaabcc1d4de277eea6c4ab6", size = 45909, upload-time = "2025-05-30T15:00:19.765Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e9/66/baef7ed718279d9ad0b10292b14ac969c5e94ece42d4569df5352443ca11/futurehouse_client-0.3.19-py3-none-any.whl", hash = "sha256:1ad7739092e87e3362cb43cf44fb71135dbe9a473713acaa6302f98fb913cede", size = 35443, upload-time = "2025-05-30T15:00:18.332Z" },
 ]
 
 [[package]]
@@ -2511,11 +2507,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/c4/bd/7fc610993f616d2398958d0028d15eaf53bde5f80cb2edb7aa4f1feaf3a7/pydantic-2.10.1.tar.gz", hash = "sha256:a4daca2dc0aa429555e0656d6bf94873a7dc5f54ee42b1f5873d666fb3f35560", size = 783717, upload-time = "2024-11-22T00:58:43.709Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/e0/fc/fda48d347bd50a788dd2a0f318a52160f911b86fc2d8b4c86f4d7c9bceea/pydantic-2.10.1-py3-none-any.whl", hash = "sha256:a8d20db84de64cf4a7d59e899c2caf0fe9d660c7cfc482528e7020d7dd189a7e", size = 455329, upload-time = "2024-11-22T00:58:40.347Z" },
-]
-
-[package.optional-dependencies]
-email = [
-    { name = "email-validator" },
 ]
 
 [[package]]
