@@ -51,12 +51,14 @@ class TestZeroshotBaseline:
         baseline = ZeroshotBaseline(
             answer_mode=AnswerMode.openanswer,
             with_refusal=False,
-            model_name="claude-3-opus",
+            model_name="anthropic/claude-3-5-sonnet-20241022",
             temperature=0.7,
         )
         assert baseline.answer_mode == AnswerMode.openanswer
         assert baseline.with_refusal is False
-        assert baseline.llm_client.config["name"] == "claude-3-opus"
+        assert (
+            baseline.llm_client.config["name"] == "anthropic/claude-3-5-sonnet-20241022"
+        )
         assert baseline.llm_client.config["temperature"] == 0.7
 
     def test_get_prompt_template(self):

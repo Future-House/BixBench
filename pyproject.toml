@@ -9,7 +9,6 @@ authors = [
 dependencies = [
   "aiodocker",
   "aiofiles",
-  "crow-client >= 0.3.4",
   "datasets",
   "fhaviary[server] >= 0.18.0",
   "fhda @ git+https://github.com/Future-House/data-analysis-crow@v1.0.0",
@@ -50,9 +49,6 @@ dev = [
   "pytest-cov",
   "ruff"
 ]
-
-[project.scripts]
-run_expt = 'scripts.configurable:_run_expt'
 
 [tool.codespell]
 check-filenames = true
