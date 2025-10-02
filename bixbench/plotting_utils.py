@@ -1,7 +1,6 @@
 # DISCLAIMER: This file is highly tailored to the BixBench paper requirements.
 # It is not designed to be used as a general function for plotting model performance.
 
-from typing import Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -21,8 +20,8 @@ COLOR_CYCLE = ["#1BBC9B", "#FF8C00", "#FF69B4", "#ce8aed", "#80cedb", "#FFFFFF"]
 def majority_vote_accuracy_by_k(
     run_results: dict[str, tuple[list[int], list[float], list[float]]],
     name: str = "",
-    random_baselines: Optional[list[float]] = None,
-    random_baselines_labels: Optional[list[str]] = None,
+    random_baselines: list[float] | None = None,
+    random_baselines_labels: list[str] | None = None,
     results_dir: str = "bixbench_results",
 ) -> None:
     """
@@ -45,7 +44,7 @@ def majority_vote_accuracy_by_k(
         ]
     if random_baselines is None:
         random_baselines = [0.2, 0.25]
-    plt.figure(figsize=(15, 6))
+    plt.figure(figsize=(12, 6))
 
     for run_name, (k_values, means, stds) in run_results.items():
         if k_values is None:
@@ -60,7 +59,7 @@ def majority_vote_accuracy_by_k(
 
     plt.xlabel("Number of Votes (k)", fontsize=18)
     plt.ylabel("Accuracy", fontsize=18)
-    plt.xlim(1, 9)
+    plt.xlim(1, max(k_values))
     plt.ylim(0.1, 0.35)
     plt.yticks(
         np.arange(0.1, 0.36, 0.05),
@@ -91,8 +90,8 @@ def plot_model_comparison(
     baselines: dict[str, float],
     run_groups: list[list[str]],
     color_groups: list[str],
-    group_titles: Optional[list[str]] = None,
-    random_baselines: Optional[list[float]] = None,
+    group_titles: list[str] | None = None,
+    random_baselines: list[float] | None = None,
     results_dir: str = "bixbench_results",
 ) -> None:
     """
@@ -148,7 +147,7 @@ def draw_baselines(
     baselines: dict[str, float],
     run_groups: list[list[str]],
     bar_width: float,
-    random_baselines: Optional[list[float]] = None,
+    random_baselines: list[float] | None = None,
 ) -> None:
     """
     Draw baseline lines on the plot for performance comparison.
@@ -185,12 +184,12 @@ def draw_baselines(
             color=baseline_color,
             linestyle=baseline_bar,
             linewidth=line_width,
-            label="baseline" if c == 0 else None,
+            label="baseline" if c == 0 else "",
         )
 
     # Draw random guess baselines
     random_label_used = False
-    for c, baseline in enumerate(random_baselines):
+    for c, baseline in enumerate(random_baselines or []):
         if baseline is None:
             continue
         plt.hlines(
@@ -200,7 +199,7 @@ def draw_baselines(
             color=random_color,
             linestyle="--",
             linewidth=line_width,
-            label="random" if not random_label_used else None,
+            label="random" if not random_label_used else "",
         )
         random_label_used = True
 
@@ -256,7 +255,7 @@ def draw_model_bars(
 def plot_simplified_comparison(
     results: dict[str, dict[str, float]],
     run_groups: list[list[str]],
-    group_titles: Optional[list[str]] = None,
+    group_titles: list[str] | None = None,
     has_mcq: bool = False,
     results_dir: str = "bixbench_results",
 ) -> None:

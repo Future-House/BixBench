@@ -46,7 +46,7 @@ def load_raw_data(path: str) -> pd.DataFrame:
         "agent_answer": utils.load_answer,
         "ideal_answer": utils.load_answer,
         "mcq_options": ast.literal_eval,
-        "mcq_question": ast.literal_eval,
+        "mcq_question": str,
         "nb": utils.load_notebook,
         "avoid_images": bool,
         "actions": int,
@@ -83,19 +83,47 @@ async def process_trajectories(df: pd.DataFrame) -> pd.DataFrame:
     eval_df = utils.create_eval_df(df)
     eval_df = await utils.run_eval_loop(eval_df)
 
-    # Create correct column for open ended questions
-    eval_df.loc[eval_df.question_format == "open", "correct"] = eval_df.loc[
-        eval_df.question_format == "open", "llm_answer"
-    ].apply(lambda x: x == "1")
-    # Extract XML from LLM MCQ answers
-    eval_df.loc[eval_df.question_format == "mcq", "llm_answer"] = eval_df.loc[
-        eval_df.question_format == "mcq", "llm_answer"
-    ].apply(utils.xml_extract)
-    # Compare LLM answers to ideal answers
-    eval_df.loc[eval_df.question_format == "mcq", "correct"] = (
-        eval_df.loc[eval_df.question_format == "mcq", "llm_answer"]
-        == eval_df.loc[eval_df.question_format == "mcq", "correct_letter"]
-    )
+    # Handle different evaluation modes
+    if "eval_mode" in eval_df.columns:
+        # Open answer evaluation
+        open_mask = eval_df["eval_mode"] == "open"
+        eval_df.loc[open_mask, "correct"] = eval_df.loc[open_mask, "llm_answer"].apply(
+            lambda x: x == "1"
+        )
+
+        # MCQ evaluations (both with and without refusal)
+        mcq_mask = eval_df["eval_mode"].isin(
+            ["mcq", "mcq_with_refusal", "mcq_without_refusal"]
+        )
+        eval_df.loc[mcq_mask, "llm_answer"] = eval_df.loc[mcq_mask, "llm_answer"].apply(
+            utils.xml_extract
+        )
+
+        # Compare MCQ answers to ideal answers
+        if "correct_letter" in eval_df.columns and mcq_mask.any():
+            eval_df.loc[mcq_mask, "correct"] = (
+                eval_df.loc[mcq_mask, "llm_answer"]
+                == eval_df.loc[mcq_mask, "correct_letter"]
+            )
+    else:
+        # Fallback to original logic if eval_mode not present
+        # Create correct column for open ended questions
+        eval_df.loc[eval_df.question_format == "open", "correct"] = eval_df.loc[
+            eval_df.question_format == "open", "llm_answer"
+        ].apply(lambda x: x == "1")
+        # Extract XML from LLM MCQ answers
+        eval_df.loc[eval_df.question_format == "mcq", "llm_answer"] = eval_df.loc[
+            eval_df.question_format == "mcq", "llm_answer"
+        ].apply(utils.xml_extract)
+        # Compare LLM answers to ideal answers (only if MCQ questions exist)
+        if (
+            "correct_letter" in eval_df.columns
+            and (eval_df.question_format == "mcq").any()
+        ):
+            eval_df.loc[eval_df.question_format == "mcq", "correct"] = (
+                eval_df.loc[eval_df.question_format == "mcq", "llm_answer"]
+                == eval_df.loc[eval_df.question_format == "mcq", "correct_letter"]
+            )
 
     return eval_df
 
@@ -120,7 +148,12 @@ async def run_majority_vote(
             tuples of (k_values, mean accuracies, standard deviations)
     """
     # Only run majority vote on mcq questions
-    maj_vote_df = eval_df[eval_df.question_format == "mcq"].copy()
+    # Check for eval_mode column first, then fallback to question_format
+    if "eval_mode" in eval_df.columns:
+        mcq_modes = ["mcq", "mcq_with_refusal", "mcq_without_refusal"]
+        maj_vote_df = eval_df[eval_df["eval_mode"].isin(mcq_modes)].copy()
+    else:
+        maj_vote_df = eval_df[eval_df.question_format == "mcq"].copy()
 
     if maj_vote_df.empty:
         print("No MCQ questions found, skipping majority vote")
@@ -135,13 +168,13 @@ async def run_majority_vote(
 
     for run_name in maj_vote_df.run_name.unique():
         grouped_df = maj_vote_df[maj_vote_df.run_name == run_name].copy()
-        grouped_df = grouped_df.groupby("uuid").agg(list)
+        grouped_df = grouped_df.groupby("problem_id").agg(list)
         grouped_df["correct_letter"] = grouped_df["correct_letter"].apply(
             operator.itemgetter(0)
         )
         grouped_df = grouped_df.dropna()
         k_values, means, stds = utils.run_majority_voting(
-            grouped_df, range(1, k_value), k_value
+            grouped_df, list(range(1, k_value)), k_value
         )
         run_results[run_name] = (k_values, means, stds)
 
@@ -250,7 +283,7 @@ async def compare_runs(
     return results
 
 
-async def load_or_process_data(config) -> pd.DataFrame:
+async def load_or_process_data(config: PostprocessingConfig) -> pd.DataFrame:
     """
     Load data from files or process trajectories based on configuration.
 
@@ -264,24 +297,21 @@ async def load_or_process_data(config) -> pd.DataFrame:
     data_path = config.data_path
     replicate_paper_results = config.replicate_paper_results
 
-    # Case 1: Replicating paper results from trajectories
-    if replicate_paper_results.run and replicate_paper_results.from_trajectories:
-        trajectory_path = f"{results_dir}/raw_trajectory_data.csv"
-        if not os.path.exists(trajectory_path):
-            raise FileNotFoundError(
-                f"raw_trajectory_data.csv not found in {results_dir}, "
-                "please follow the readme to download the raw trajectory data"
-            )
-        data = load_raw_data(trajectory_path)
-        return await process_trajectories(data)
+    if replicate_paper_results.run:
+        if replicate_paper_results.from_trajectories:
+            trajectory_path = f"{results_dir}/raw_trajectory_data.csv"
+            if not os.path.exists(trajectory_path):
+                raise FileNotFoundError(
+                    f"raw_trajectory_data.csv not found in {results_dir}, "
+                    "please follow the readme to download the raw trajectory data"
+                )
+            data = load_raw_data(trajectory_path)
+            return await process_trajectories(data)
 
-    # Case 2: Replicating paper results from pre-computed eval_df
-    if replicate_paper_results.run and (not replicate_paper_results.from_trajectories):
-        eval_df_path = f"{results_dir}/eval_df.csv"
+        eval_df_path = config.eval_df_path
         if not os.path.exists(eval_df_path):
             raise FileNotFoundError(
-                f"eval_df.csv not found in {results_dir}, "
-                "please follow the readme to download the eval_df.csv"
+                f"eval_df.csv not found in {results_dir}, please follow the readme to download the eval_df.csv"
             )
         eval_df = pd.read_csv(eval_df_path)
         eval_df["correct"] = eval_df["correct"].astype(bool)
@@ -315,7 +345,7 @@ async def main(config_path: str):
 
     # Save intermediary processed data for debugging
     if config.debug | (config.replicate_paper_results.from_trajectories):
-        eval_df.to_csv(f"{results_dir}/eval_df_new.csv", index=False)
+        eval_df.to_csv(config.eval_df_path, index=False)
 
     # Run majority vote if configured
     if config.majority_vote.run:
@@ -335,7 +365,7 @@ if __name__ == "__main__":
     # Parse command line arguments
     parser = argparse.ArgumentParser(description="Process BixBench evaluation data")
     parser.add_argument(
-        "config_file", type=str, help="Path to the YAML configuration file"
+        "--config_file", type=str, help="Path to the YAML configuration file"
     )
 
     args = parser.parse_args()

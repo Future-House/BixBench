@@ -24,6 +24,7 @@ def set_fh_mpl_style(dark_mode: bool = False):
     try:
         import matplotlib as mpl
         import matplotlib.pyplot as plt
+        from matplotlib import font_manager
     except ImportError:
         raise ImportError(
             "Please `pip install matplotlib` to use set_fh_mpl_style."
@@ -31,8 +32,8 @@ def set_fh_mpl_style(dark_mode: bool = False):
 
     _download_font()
 
-    fe = mpl.font_manager.FontEntry(fname=str(FONT_PATH), name="sometype")
-    mpl.font_manager.fontManager.ttflist.append(fe)
+    fe = font_manager.FontEntry(fname=str(FONT_PATH), name="sometype")
+    font_manager.fontManager.ttflist.append(fe)
     if dark_mode:
         mpl.rcParams.update(
             {
@@ -41,7 +42,7 @@ def set_fh_mpl_style(dark_mode: bool = False):
                 "axes.edgecolor": "#FFFFFF",  # White axes edges
                 "figure.facecolor": "#000000",  # Black background for the figure
                 "axes.grid": False,
-                "axes.prop_cycle": plt.cycler(color=COLOR_CYCLE),
+                "axes.prop_cycle": plt.cycler(color=COLOR_CYCLE),  # type: ignore[attr-defined]
                 "font.family": fe.name,
                 "font.size": 14,
                 "figure.figsize": (
@@ -68,7 +69,7 @@ def set_fh_mpl_style(dark_mode: bool = False):
                 "axes.edgecolor": "#333333",
                 "figure.facecolor": "#FFFFFF",
                 "axes.grid": False,
-                "axes.prop_cycle": plt.cycler(color=COLOR_CYCLE),
+                "axes.prop_cycle": plt.cycler(color=COLOR_CYCLE),  # type: ignore[attr-defined]
                 "font.family": fe.name,
                 "font.size": 14,
                 "figure.figsize": (
@@ -90,8 +91,8 @@ def set_fh_plotly_style(dark_mode: bool = False):
     NOTE: I haven't figured out how to set Courier Prime as the font.
     """
     try:
-        import plotly.graph_objects as go
-        import plotly.io as pio
+        import plotly.graph_objects as go  # type: ignore[import-not-found]
+        import plotly.io as pio  # type: ignore[import-not-found]
     except ImportError:
         raise ImportError(
             "Please `pip install plotly` to use set_fh_plotly_style."

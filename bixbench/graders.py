@@ -1,12 +1,13 @@
 import ast
 import re
 from enum import StrEnum
-from typing import Any, Literal, Optional
+from typing import Any, Literal, Self
 
 from aviary.core import Message
+from lmi import LiteLLMModel
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from .prompts import OPEN_ENDED_GRADING_PROMPT
+from .prompts import OPEN_ENDED_GRADING_PROMPT, OPEN_ENDED_RANGE_GRADING_PROMPT
 from .utils import AnswerMode
 
 
@@ -42,8 +43,8 @@ class GradeResult(BaseModel):
     grade: int = Field(ge=0, le=1, description="Numeric grade (0 or 1)")
     correct: bool = Field(description="Whether the answer is correct")
     refusal: bool = Field(description="Whether the answer is a refusal")
-    grade_type: Optional[GradeType] = Field(default=None, description="Type of grade")
-    raw_response: Optional[str] = Field(
+    grade_type: GradeType | None = Field(default=None, description="Type of grade")
+    raw_response: str | None = Field(
         default=None, description="Raw LLM response for open-ended"
     )
 
@@ -57,11 +58,9 @@ class GradingFunction(BaseModel):
     def _parse_grade_response(self, response: str) -> GradeType:
         """Parse the grade from LLM response."""
         match = re.search(r"<grade>\s*(.*?)\s*</grade>", response, re.DOTALL)
-        grade = match.group(1).strip().lower() if match else None
+        grade = match[1].strip().lower() if match else None
 
-        if grade == "correct":
-            return GradeType.CORRECT
-        return GradeType.INCORRECT
+        return GradeType.CORRECT if grade == "correct" else GradeType.INCORRECT
 
     async def _grade_str_verifier(
         self,
@@ -110,17 +109,17 @@ class GradingFunction(BaseModel):
 
     async def _grade_llm_verifier(
         self,
-        question,
-        target,
-        predicted,
-        llm_client,
+        question: str,
+        target: str,
+        predicted: str,
+        llm_client: LiteLLMModel,
         grading_prompt_template=OPEN_ENDED_GRADING_PROMPT,
     ) -> GradeResult:
         grading_query = grading_prompt_template.format(
             question=question, target=target, predicted=predicted
         )
         completion = await llm_client.call_single([Message(content=grading_query)])
-        response = completion.model_dump()["text"]
+        response = completion.text or ""
         grade_type = self._parse_grade_response(response)
 
         return GradeResult(
@@ -129,6 +128,28 @@ class GradingFunction(BaseModel):
             refusal=grade_type.is_refused,
             grade_type=grade_type,
             raw_response=response,
+        )
+
+    async def _grade_range_llm_verifier(
+        self,
+        question,
+        target: str,
+        predicted: str,
+        llm_client: LiteLLMModel,
+        grading_prompt_template=OPEN_ENDED_RANGE_GRADING_PROMPT,
+    ) -> GradeResult:
+        grading_query = grading_prompt_template.format(
+            question=question, target=target, predicted=predicted
+        )
+        completion = await llm_client.call_single([Message(content=grading_query)])
+        response = completion.text or ""
+        grade_type = self._parse_grade_response(response)
+
+        return GradeResult(
+            grade=grade_type.numeric_grade,
+            correct=grade_type.is_correct,
+            refusal=grade_type.is_refused,
+            grade_type=grade_type,
         )
 
     def _grade_range_verifier(
@@ -163,10 +184,11 @@ class MCQGrader(BaseModel):
         self,
         target: str,
         predicted: str,
-        unsure: Optional[str] = None,
-        evaluation_mode: Literal["str_verifier", "range_verifier"] = "str_verifier",
+        unsure: str | None = None,
+        evaluation_mode: Literal[
+            "str_verifier", "range_verifier", "llm_verifier"
+        ] = "str_verifier",
     ) -> GradeResult:
-
         grading_func = GradingFunction()
         if evaluation_mode == "str_verifier":
             return await grading_func._grade_str_verifier(
@@ -181,14 +203,14 @@ class MCQGrader(BaseModel):
                 target=target, predicted=predicted
             )
 
-        raise ValueError(f"Unknown eval_mode: {self.eval_mode}")
+        raise ValueError(f"Unknown eval_mode: {evaluation_mode}")
 
 
 class OpenEndedGrader(BaseModel):
     """Grader for open-ended questions."""
 
     evaluation_mode: Literal["llm_verifier", "str_verifier", "range_verifier"] = Field(
-        default="llm", description="Evaluation mode for open-ended answers"
+        default="llm_verifier", description="Evaluation mode for open-ended answers"
     )
     llm_client: Any = Field(description="LLM client for grading")
     grading_prompt_template: str = Field(
@@ -208,7 +230,7 @@ class OpenEndedGrader(BaseModel):
         return v
 
     @model_validator(mode="after")
-    def validate_llm_client(self) -> "OpenEndedGrader":
+    def validate_llm_client(self) -> Self:
         """Ensure llm_client is provided when using llm_verifier mode."""
         if self.evaluation_mode == "llm_verifier" and not self.llm_client:
             raise ValueError("llm_client is required when using llm_verifier mode")
@@ -219,8 +241,8 @@ class OpenEndedGrader(BaseModel):
         question: str,
         target: str,
         predicted: str,
-        partial_match: Optional[bool] = True,
-        llm_match: Optional[bool] = True,
+        partial_match: bool = True,
+        llm_match: bool = True,
     ) -> GradeResult:
         """Grade an open-ended answer."""
         grading_func = GradingFunction()
@@ -236,8 +258,12 @@ class OpenEndedGrader(BaseModel):
             )
 
         if self.evaluation_mode == "range_verifier":
-            return grading_func._grade_range_verifier(
-                target=target, predicted=predicted
+            return await grading_func._grade_range_llm_verifier(
+                question=question,
+                target=target,
+                predicted=predicted,
+                llm_client=self.llm_client,
+                grading_prompt_template=self.grading_prompt_template,
             )
 
         if self.evaluation_mode == "llm_verifier":
@@ -248,7 +274,7 @@ class OpenEndedGrader(BaseModel):
                 llm_client=self.llm_client,
                 grading_prompt_template=self.grading_prompt_template,
             )
-        raise ValueError(f"Unknown eval_mode: {self.eval_mode}")
+        raise ValueError(f"Unknown eval_mode: {self.evaluation_mode}")
 
 
 class GradeAnswer(BaseModel):
@@ -264,15 +290,15 @@ class GradeAnswer(BaseModel):
         self,
         target: str,
         predicted: str,
-        question: Optional[str] = None,
-        unsure: Optional[str] = None,
+        question: str | None = None,
+        unsure: str | None = None,
         evaluation_mode: Literal[
             "llm_verifier", "str_verifier", "range_verifier"
         ] = "str_verifier",
-        partial_match: Optional[bool] = False,
-        llm_match: Optional[bool] = False,
+        partial_match: bool = False,
+        llm_match: bool = False,
     ) -> tuple[int, bool, bool]:
-
+        print(f"Grading: {question}, {target}, {predicted}")
         if self.answer_mode == AnswerMode.mcq:
             mcq_grader = MCQGrader()
             result = await mcq_grader.grade(
@@ -284,16 +310,20 @@ class GradeAnswer(BaseModel):
             return result.grade, result.correct, result.refusal
 
         if self.answer_mode == AnswerMode.openanswer:
+            assert question is not None
             open_ended_grader = OpenEndedGrader(
                 evaluation_mode=evaluation_mode, llm_client=self.llm_client
             )
             result = await open_ended_grader.grade(
                 question=question,
-                target=str(target),
-                predicted=str(predicted),
+                target=target,
+                predicted=predicted,
                 partial_match=partial_match,
                 llm_match=llm_match,
             )
+            print("===============")
+            print(f"Result: {result}")
+            print("===============")
             return result.grade, result.correct, result.refusal
 
         raise ValueError(f"Unknown answer mode: {self.answer_mode}")

@@ -1,8 +1,10 @@
+import asyncio
 import random
 import string
 import uuid
+from collections.abc import AsyncIterator, Awaitable, Iterable
 from enum import StrEnum, auto
-from typing import Optional
+from typing import TypeVar
 
 from pydantic import BaseModel, ConfigDict
 
@@ -21,13 +23,13 @@ class BaseModelWithID(BaseModel):
 
 class Query(BaseModel):
     model_config = ConfigDict(extra="ignore", arbitrary_types_allowed=True)
-    id: uuid.UUID
+    id: uuid.UUID | str
     question: str
     target: str
     choices: list[str] | None = None
     predicted: str | None = None
     unsure: str | None = None
-    evaluation_mode: Optional[str] = None
+    evaluation_mode: str | None = None
 
 
 class LLMConfig(BaseModel):
@@ -48,7 +50,7 @@ def parse_response(
 
 def randomize_choices(
     ideal: str, distractors: list[str], with_refusal: bool = True
-) -> tuple[list[str], str, str]:
+) -> tuple[list[str], str, str | None]:
     REFUSE_CHOICE = "Insufficient information to answer the question"
     ALPHABET = string.ascii_uppercase
     choices = (
@@ -83,7 +85,7 @@ def compute_metrics(grades: list[bool], is_refused: list[bool]) -> dict:
 
     n_total = len(grades)
     n_correct = sum(grades)
-    n_unsure = sum(1 for x in is_refused if x)
+    n_unsure = sum(bool(x) for x in is_refused)
     n_sure = n_total - n_unsure
     # Calculate metrics
     accuracy = n_correct / n_total if n_total > 0 else 0
@@ -98,3 +100,37 @@ def compute_metrics(grades: list[bool], is_refused: list[bool]) -> dict:
         "n_correct": n_correct,
         "n_sure": n_sure,
     }
+
+
+T = TypeVar("T")
+
+
+async def as_completed_with_concurrency(
+    coros: Iterable[Awaitable[T]],
+    max_concurrent: int | asyncio.Semaphore = 5,
+    timeout: float = 600.0,
+) -> AsyncIterator[T]:
+    """Run a list of coroutines concurrently with rate limiting and progress tracking.
+
+    Args:
+        coros: List of coroutines to run
+        max_concurrent: Maximum number of concurrent coroutines to run
+        timeout: Timeout for the coroutines
+
+    Returns:
+        AsyncIterator of results from each coroutine
+    """
+    sem = (
+        asyncio.Semaphore(max_concurrent)
+        if isinstance(max_concurrent, int)
+        else max_concurrent
+    )
+
+    async def sem_coro(coro: Awaitable[T]) -> T:
+        async with sem:
+            return await coro
+
+    # submit as futures and then gather them as_completed
+    futures = (asyncio.ensure_future(sem_coro(coro)) for coro in coros)
+    async for future in asyncio.as_completed(futures, timeout=timeout):
+        yield future.result()

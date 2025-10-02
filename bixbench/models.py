@@ -1,11 +1,12 @@
 from pathlib import Path
-from typing import Any, Literal, Optional
+from typing import Any, Literal
 
+import fhda.config as cfg
 from aviary.utils import EvalAnswerMode
 from fhda import prompts
 from fhda.utils import NBLanguage
 from ldp.agent import AgentConfig
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, computed_field, field_validator, model_validator
 
 
 class AgentSettings(BaseModel):
@@ -23,6 +24,7 @@ class RolloutSettings(BaseModel):
     max_steps: int
     batch_size: int
     rollout_type: str = "vanilla"
+    skip_existing_trajectories: bool = True
 
     @classmethod
     @field_validator("max_steps")
@@ -50,6 +52,7 @@ class RolloutSettings(BaseModel):
 class NotebookSettings(BaseModel):
     name: str
     language: NBLanguage
+    use_docker: bool = True
 
     @classmethod
     @field_validator("language")
@@ -62,6 +65,12 @@ class NotebookSettings(BaseModel):
             raise ValueError(
                 f"Invalid language: {v}. Must be convertible to NBLanguage enum."
             ) from err
+
+    @model_validator(mode="after")
+    def validate_use_docker(self):
+        if self.use_docker:
+            cfg.USE_DOCKER = True
+        return self
 
 
 class PromptTemplates(BaseModel):
@@ -117,18 +126,44 @@ class BixbenchConfig(BaseModel):
     notebook: NotebookSettings
     capsule: CapsuleSettings
     paths: PathSettings
-    postprocessing: Optional[PostProcessingSettings] = None
+    postprocessing: PostProcessingSettings | None = None
 
     # Computed fields that come from processing the raw config
-    agent_config: Optional[AgentConfig] = None
-    system_prompt: Optional[str] = None
-    base_prompt: Optional[str] = None
-    local_workspace_dir: Optional[Path] = None
-    local_trajectories_dir: Optional[Path] = None
-    local_data_folder: Optional[Path] = None
+    system_prompt: str | None = None
+    dataset_split: str = "train"
 
     class Config:
         arbitrary_types_allowed = True
+
+    @computed_field
+    @property
+    def local_workspace_dir(self) -> Path:
+        return Path(self.paths.workspace_dir).absolute()
+
+    @computed_field
+    @property
+    def local_trajectories_dir(self) -> Path:
+        return Path(self.paths.trajectories_dir).absolute() / self.run_name
+
+    @computed_field
+    @property
+    def local_data_folder(self) -> Path:
+        return Path(self.paths.data_folder).absolute()
+
+    @computed_field
+    @property
+    def base_prompt(self) -> str:
+        prompt = getattr(
+            prompts, self.capsule.prompt_templates.model_dump()[self.capsule.mode]
+        )
+        if self.capsule.avoid_images:
+            prompt += "\n" + prompts.AVOID_IMAGES
+        return prompt
+
+    @computed_field
+    @property
+    def agent_config(self) -> AgentConfig:
+        return self.agent.construct_agent_config()
 
     @model_validator(mode="after")
     def set_derived_fields(self):
@@ -138,26 +173,8 @@ class BixbenchConfig(BaseModel):
         ) and self.capsule.eval_mode.lower() in {"none", "null", ""}:
             self.capsule.eval_mode = None
 
-        # Create AgentConfig
-        self.agent_config = self.agent.construct_agent_config()
-
         # Get system prompt and base prompt
         self.system_prompt = getattr(prompts, self.capsule.system_prompt)
-        capsule_mode = self.capsule.mode
-        self.base_prompt = getattr(
-            prompts, self.capsule.prompt_templates.model_dump()[capsule_mode]
-        )
-        if self.capsule.avoid_images:
-            self.base_prompt += "\n" + prompts.AVOID_IMAGES
-
-        # Set absolute path values
-        path_dict = self.paths.get_absolute_paths()
-        self.local_workspace_dir = path_dict["local_workspace_dir"] / self.run_name
-        self.local_trajectories_dir = (
-            path_dict["local_trajectories_dir"] / self.run_name
-        )
-        # We can share the data folder across runs
-        self.local_data_folder = path_dict["local_data_folder"]
 
         return self
 
@@ -176,18 +193,19 @@ class MajorityVoteConfig(BaseModel):
 class RunComparisonConfig(BaseModel):
     run: bool = True
     # This is used to account for environment failures that don't always show up in the data
-    total_questions_per_run: int = 296
+    total_questions_per_run: int | None = None
     run_name_groups: list[list[str]] = Field(default_factory=list)
     group_titles: list[str] = Field(default_factory=list)
     color_groups: list[str] = Field(default_factory=list)
     use_zero_shot_baselines: bool = False
-    random_baselines: list[Optional[float]] = Field(default_factory=list)
+    random_baselines: list[float | None] = Field(default_factory=list)
     baseline_name_mappings: dict[str, str] = Field(default_factory=dict)
 
 
 class PostprocessingConfig(BaseModel):
     data_path: str = "data/trajectories/"
     results_dir: str = "bixbench_results"
+    eval_df_filename: str = "eval_df.csv"
     debug: bool = False
 
     replicate_paper_results: PaperReplicationConfig = Field(
@@ -195,3 +213,8 @@ class PostprocessingConfig(BaseModel):
     )
     majority_vote: MajorityVoteConfig = Field(default_factory=MajorityVoteConfig)
     run_comparison: RunComparisonConfig = Field(default_factory=RunComparisonConfig)
+
+    @computed_field
+    @property
+    def eval_df_path(self) -> Path:
+        return Path(self.results_dir) / self.eval_df_filename

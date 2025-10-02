@@ -1,9 +1,6 @@
 [build-system]
 build-backend = "setuptools.build_meta"
-requires = [
-  "setuptools>=66",
-  "wheel>=0.36"
-]
+requires = ["setuptools>=66", "wheel>=0.36"]
 
 [project]
 authors = [
@@ -11,31 +8,29 @@ authors = [
 ]
 dependencies = [
   "aiodocker",
+  "aiofiles",
+  "datasets",
   "fhaviary[server] >= 0.18.0",
-  "fhda @ git+https://github.com/Future-House/data-analysis-crow@v1.0.0",
+  "fhda @ git+https://github.com/Future-House/data-analysis-crow@v1.5.0",
+  "fhlmi",
+  "google-auth",
+  "google-cloud-secret-manager",
+  "google-cloud-storage",
+  "huggingface-hub",
+  "jupyter",
   "ldp",
-  "pandas",
-  "numpy",
   "matplotlib",
+  "nbconvert",
+  "nbformat",
+  "notebook",
+  "numpy",
+  "pandas",
+  "pydantic~=2.0",
+  "python-dotenv",
+  "scikit-learn",
   "scipy",
   "seaborn",
-  "scikit-learn",
-  "statsmodels",
-  "aiofiles",
-  "google-auth",
-  "google-cloud-storage",
-  "google-cloud-secret-manager",
-  "crow-client >= 0.3.4",
-  "jupyter",
-  "nbconvert",
-  "notebook",
-  "nbformat",
-  "fhlmi",
-  "pydantic~=2.0",
-  "datasets",
-  "pandas",
-  "python-dotenv",
-  "huggingface-hub"
+  "statsmodels"
 ]
 description = "BixBench"
 name = "fhbixbench"
@@ -55,14 +50,11 @@ dev = [
   "ruff"
 ]
 
-[project.scripts]
-run_expt = 'scripts.configurable:_run_expt'
-
 [tool.codespell]
 check-filenames = true
 check-hidden = true
-ignore-words-list = "coefficent"
-skip = "uv.lock,bixbench_results/baseline_eval_data/*"
+ignore-words-list = "coefficent,LasR"
+skip = "uv.lock,bixbench_results/baseline_eval_data/*,bixbench-v1.5_results/*"
 
 [tool.refurb]
 enable_all = true

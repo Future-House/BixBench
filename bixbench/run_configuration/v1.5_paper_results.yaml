@@ -1,0 +1,52 @@
+data_path: "bixbench-v1.5_results/trajectories/"
+results_dir: "bixbench-v1.5_results"
+debug: true
+
+replicate_paper_results:
+  run: true
+  from_trajectories: false # Process from trajectories, not pre-computed eval_df
+
+majority_vote:
+  run: true
+  k_value: 5
+  groups:
+    image_comparison:
+      - "claude_image_mcq_with_refusal"
+      - "4o_image_mcq_with_refusal"
+      - "claude_no_image_mcq_with_refusal"
+      - "4o_no_image_mcq_with_refusal"
+    refusal_option_comparison:
+      - "claude_image_mcq_without_refusal"
+      - "4o_image_mcq_without_refusal"
+      - "claude_image_mcq_with_refusal"
+      - "4o_image_mcq_with_refusal"
+
+run_comparison:
+  run: true
+  # Adjust this based on actual number of questions in the new dataset
+  # Original was 2960 (296 questions x 10 iterations)
+  # You may need to update this based on your dataset size
+  total_questions_per_run: null
+  run_name_groups:
+    - ["4o_image_open", "claude_image_open"]
+    - ["4o_image_mcq_with_refusal", "claude_image_mcq_with_refusal"]
+    - ["4o_image_mcq_without_refusal", "claude_image_mcq_without_refusal"]
+  group_titles:
+    - "Open-answer"
+    - "MCQ w/ refusal"
+    - "MCQ w/o refusal"
+  color_groups:
+    - "4o"
+    - "claude"
+  use_zero_shot_baselines: true
+  random_baselines:
+    - null # For open-ended (no random baseline)
+    - 0.2 # For MCQ with refusal (1/5 chance)
+    - 0.25 # For MCQ without refusal (1/4 chance)
+  baseline_name_mappings:
+    "gpt-4o-grader-openended": "4o_image_open"
+    "claude-3-5-sonnet-latest-grader-openended": "claude_image_open"
+    "gpt-4o-grader-mcq-refusal-True": "4o_image_mcq_with_refusal"
+    "claude-3-5-sonnet-latest-grader-mcq-refusal-True": "claude_image_mcq_with_refusal"
+    "gpt-4o-grader-mcq-refusal-False": "4o_image_mcq_without_refusal"
+    "claude-3-5-sonnet-latest-grader-mcq-refusal-False": "claude_image_mcq_without_refusal"
