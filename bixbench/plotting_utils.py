@@ -23,6 +23,7 @@ def majority_vote_accuracy_by_k(
     random_baselines: list[float] | None = None,
     random_baselines_labels: list[str] | None = None,
     results_dir: str = "bixbench_results",
+    legend_loc: str = "upper right",
 ) -> None:
     """
     Plot the accuracy of majority voting as a function of the number of votes (k).
@@ -33,6 +34,7 @@ def majority_vote_accuracy_by_k(
         random_baselines: List of accuracy values for random baseline models
         random_baselines_labels: Labels for the random baseline models
         results_dir: Directory to save results
+        legend_loc: Location of the legend
 
     Returns:
         None: Saves the plot to disk and displays it
@@ -60,10 +62,10 @@ def majority_vote_accuracy_by_k(
     plt.xlabel("Number of Votes (k)", fontsize=18)
     plt.ylabel("Accuracy", fontsize=18)
     plt.xlim(1, max(k_values))
-    plt.ylim(0.1, 0.35)
+    plt.ylim(0.15, 0.325)
     plt.yticks(
-        np.arange(0.1, 0.36, 0.05),
-        [f"{x:.2f}" for x in np.arange(0.1, 0.36, 0.05)],
+        np.arange(0.15, 0.325, 0.05),
+        [f"{x:.2f}" for x in np.arange(0.15, 0.325, 0.05)],
         fontsize=18,
     )
     plt.title("Majority Voting Accuracy", fontsize=18)
@@ -79,7 +81,7 @@ def majority_vote_accuracy_by_k(
             linestyle=":",
             label=label,
         )
-    plt.legend(loc="upper left")
+    plt.legend(loc=legend_loc)
     plt.grid(alpha=0.3, visible=True)
     plt.savefig(f"{results_dir}/majority_vote_accuracy_{name}.png")
     plt.show()
@@ -199,7 +201,7 @@ def draw_baselines(
             color=random_color,
             linestyle="--",
             linewidth=line_width,
-            label="random" if not random_label_used else "",
+            label="" if random_label_used else "random",
         )
         random_label_used = True
 

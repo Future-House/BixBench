@@ -160,7 +160,7 @@ async def run_majority_vote(
         return {}
 
     # Get configuration values
-    k_value = config.k_value
+    k_value = config.k_value + 1
     mv_groups = config.groups
 
     # Store results for all runs
@@ -181,8 +181,9 @@ async def run_majority_vote(
     # Plot results for each group if specified in config
     for group_name, group_runs in mv_groups.items():
         # Filter run_results to only include runs specified in the group
+        name_mappings = config.group_name_mappings.get(group_name, {})
         filtered_results = {
-            run_name: run_results[run_name]
+            name_mappings.get(run_name, run_name): run_results[run_name]
             for run_name in group_runs
             if run_name in run_results
         }
