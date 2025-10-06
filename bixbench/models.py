@@ -188,6 +188,7 @@ class MajorityVoteConfig(BaseModel):
     run: bool = False
     k_value: int = 10
     groups: dict[str, list[str]] = Field(default_factory=dict)
+    group_name_mappings: dict[str, dict[str, str]] = Field(default_factory=dict)
 
 
 class RunComparisonConfig(BaseModel):

@@ -20,12 +20,23 @@ majority_vote:
       - "4o_image_mcq_without_refusal"
       - "claude_image_mcq_with_refusal"
       - "4o_image_mcq_with_refusal"
+  group_name_mappings:
+    image_comparison:
+      "claude_image_mcq_with_refusal": "Claude 3.5 Sonnet w/ image"
+      "4o_image_mcq_with_refusal": "gpt-4o w/ image"
+      "claude_no_image_mcq_with_refusal": "Claude 3.5 Sonnet w/o image"
+      "4o_no_image_mcq_with_refusal": "gpt-4o w/o image"
+    refusal_option_comparison:
+      "claude_image_mcq_without_refusal": "Claude 3.5 Sonnet w/o refusal"
+      "4o_image_mcq_without_refusal": "gpt-4o w/o refusal"
+      "claude_image_mcq_with_refusal": "Claude 3.5 Sonnet refusal"
+      "4o_image_mcq_with_refusal": "gpt-4o refusal"
 
 run_comparison:
   run: true
-  # Adjust this based on actual number of questions in the new dataset
-  # Original was 2960 (296 questions x 10 iterations)
-  # You may need to update this based on your dataset size
+  # Adjust this based on actual number of questions in the replicated dataset
+  # Original was 2050 (205 questions x 10 iterations)
+  # You only need to provide this if your replicated dataset has a different number of questions
   total_questions_per_run: null
   run_name_groups:
     - ["4o_image_open", "claude_image_open"]
