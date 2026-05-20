@@ -70,6 +70,14 @@ docker pull futurehouse/bixbench:aviary-notebook-env
 
 See [Docker's Getting Started Guide](https://docs.docker.com/get-started/) for instructions on how to set up Docker.
 
+If Docker reports `no matching manifest for linux/amd64 in the manifest list
+entries`, the published image is not available for your local CPU architecture.
+You can still run BixBench by setting `use_docker: false` under `notebook` in the
+run configuration to use a local Jupyter kernel. If your Docker installation
+supports emulation, you can also explicitly pull the ARM image with
+`docker pull --platform linux/arm64 futurehouse/bixbench:aviary-notebook-env`,
+though this is slower than a native image.
+
 ## Quick Start
 
 For quick reproduction of BixBench results, we provide automated scripts that handle the entire evaluation pipeline:
@@ -258,6 +266,7 @@ You will see the following figures from the paper:
 - **Execution Time**: Complete agentic evaluations take 24-48 hours. Use the zero-shot script (`run_zeroshot.sh`) for faster results if you only need baseline comparisons.
 - When generating trajectories manually, the default batch size is set to 4 to optimize processing speed. You may need to adjust this value in the [configuration file](https://github.com/Future-House/BixBench/blob/8c57d3562044e4ce574a09438066033e21155f54/bixbench/run_configuration/generate_trajectories.yaml#L14) based on your API rate limits and available compute resources.
 - While the agent can use a local Jupyter kernel, we recommend using our custom Docker environment for improved performance (default is `USE_DOCKER=true`). Be sure to pull the Docker image as described in the [Installation](#installation) section. If you would like to use a local Jupyter kernel, set use_docker to false in the notebook section of the configuration file.
+- If the Docker pull fails with `no matching manifest for linux/amd64`, use the local-kernel fallback above or pull the ARM image explicitly on a Docker setup that supports cross-architecture emulation.
 - **Directory Structure**: The v1.5 automation scripts create and use `bixbench-v1.5_results/` while manual configurations may use `bixbench_results/` or other directories as specified in the YAML files.
 
 ## Acknowledgments
