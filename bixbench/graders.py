@@ -159,8 +159,7 @@ class GradingFunction(BaseModel):
     ) -> GradeResult:
         lower, upper = ast.literal_eval(target)
         correct = lower <= float(predicted) <= upper
-        if correct:
-            grade_type = GradeType.CORRECT
+        grade_type = GradeType.CORRECT if correct else GradeType.INCORRECT
 
         return GradeResult(
             grade=grade_type.numeric_grade,

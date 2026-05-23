@@ -109,6 +109,28 @@ async def test_grade_mcq_answer(
     assert grade_result.refusal == expected_refusal
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("target", "predicted", "expected_grade", "expected_correct"),
+    [
+        pytest.param("(1.0, 3.0)", "1.0", 1, True, id="lower_bound"),
+        pytest.param("(1.0, 3.0)", "2.0", 1, True, id="inside_range"),
+        pytest.param("(1.0, 3.0)", "3.0", 1, True, id="upper_bound"),
+        pytest.param("(1.0, 3.0)", "4.0", 0, False, id="outside_range"),
+    ],
+)
+async def test_grade_range_answer(
+    target: str, predicted: str, expected_grade: int, expected_correct: bool
+):
+    grade_result = await MCQGrader().grade(
+        target, predicted, evaluation_mode="range_verifier"
+    )
+
+    assert grade_result.grade == expected_grade
+    assert grade_result.correct is expected_correct
+    assert grade_result.refusal is False
+
+
 @pytest.mark.parametrize(
     ("grades", "is_refused", "metrics"),
     [

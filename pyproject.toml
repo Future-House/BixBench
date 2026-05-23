@@ -56,6 +56,9 @@ check-hidden = true
 ignore-words-list = "coefficent,LasR"
 skip = "uv.lock,bixbench_results/baseline_eval_data/*,bixbench-v1.5_results/*"
 
+[tool.pytest.ini_options]
+pythonpath = ["."]
+
 [tool.refurb]
 enable_all = true
 ignore = [
