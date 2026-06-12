@@ -21,8 +21,8 @@ def load_dataframe_from_json_directory(path: str) -> pd.DataFrame:
     """Load a dataframe from a json directory."""
     all_data = []
     for file in list(Path(path).glob("**/*.json")):
-        replica = re.search(r"replica_(\d+)", file.name)[1]
-        replica = int(replica) if replica is not None else 0
+        replica_match = re.search(r"replica_(\d+)", file.name)
+        replica = int(replica_match[1]) if replica_match else 0
         with open(file, encoding="utf-8") as f:
             data = json.load(f)
             data["replica"] = replica
