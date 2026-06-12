@@ -143,7 +143,43 @@ Edit or create a new YAML file to modify:
 
 ### Using Your Own Agent
 
-To use your own agent, use the `generate_trajectories.py` script by editing the [`custom_rollout`](https://github.com/Future-House/BixBench/blob/6c28217959d5d7dd6f48c59894534fced7c6c040/bixbench/generate_trajectories.py#L239) function to generate trajectories in the same format as the BixBench trajectories, then use the `postprocessing.py` script to evaluate your agent's performance.
+To use your own agent, write BixBench-compatible trajectory JSON files and then
+run the standard `postprocessing.py` script on the output directory. The helper
+below validates the required fields before you spend credits on a full benchmark
+run:
+
+```python
+from bixbench.custom_trajectories import minimal_notebook, write_custom_trajectory
+
+record = {
+    "problem_id": "capsule-001",
+    "agent_answer": "The treatment increased expression by 2x.",
+    "ideal_answer": "The treatment increased expression by 2x.",
+    "problem": "Compare expression in control and treatment samples.",
+    "mcq_options": [],
+    "mcq_question": "Which conclusion is best supported?",
+    "notebook_stats": {"num_cells": 1},
+    "num_actions": 3,
+    "question_format": "open",
+    "refusal_option": True,
+    "metadata": {"distractors": ["No change.", "Expression decreased."]},
+    "refusal_options": None,
+    "nb": minimal_notebook("print('analysis complete')"),
+    "run_name": "my-custom-agent",
+}
+
+write_custom_trajectory(record, "data/trajectories/my-custom-agent")
+```
+
+The writer stores files as `<problem_id>_replica_<id>.json`, matching the
+directory loader used by postprocessing. For open-answer trajectories,
+`metadata["distractors"]` is required by default because postprocessing expands
+open answers into multiple-choice grading rows unless MCQ expansion is disabled.
+
+You can still subclass the rollout path and implement
+[`custom_rollout`](https://github.com/Future-House/BixBench/blob/6c28217959d5d7dd6f48c59894534fced7c6c040/bixbench/generate_trajectories.py#L239),
+but external agents no longer need to edit core rollout code just to validate
+and postprocess already-generated trajectories.
 
 ### Evaluate trajectories
 
