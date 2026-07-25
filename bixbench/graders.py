@@ -56,11 +56,20 @@ class GradingFunction(BaseModel):
     """Base class for grading functions."""
 
     def _parse_grade_response(self, response: str) -> GradeType:
-        """Parse the grade from LLM response."""
+        """Parse the grade from LLM response.
+
+        The grading prompts ask for one of `correct`, `incorrect` or `refused`.
+        Anything else, including a missing or malformed <grade> tag, is graded
+        incorrect.
+        """
         match = re.search(r"<grade>\s*(.*?)\s*</grade>", response, re.DOTALL)
         grade = match[1].strip().lower() if match else None
 
-        return GradeType.CORRECT if grade == "correct" else GradeType.INCORRECT
+        if grade == GradeType.CORRECT:
+            return GradeType.CORRECT
+        if grade == GradeType.REFUSED:
+            return GradeType.REFUSED
+        return GradeType.INCORRECT
 
     async def _grade_str_verifier(
         self,
