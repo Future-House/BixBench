@@ -1,5 +1,6 @@
 import ast
 import re
+from decimal import Decimal, InvalidOperation
 from enum import StrEnum
 from typing import Any, Literal, Self
 
@@ -72,26 +73,56 @@ class GradingFunction(BaseModel):
         llm_match=False,
         llm_client=None,
         grading_prompt_template=OPEN_ENDED_GRADING_PROMPT,
+        numeric_match=True,
     ) -> GradeResult:
-        # normalize the target and predicted answers
-        # EXACT match grading
-        cleaned_target = re.sub(r"[^a-zA-Z0-9]", "", target).lower()
-        cleaned_predicted = re.sub(r"[^a-zA-Z0-9]", "", predicted).lower()
-
-        correct = cleaned_predicted == cleaned_target
-        refusal = predicted == unsure if unsure else False
-        if not correct and partial_match:
-            # PARTIAL match grading
-            correct = cleaned_predicted in cleaned_target
-            if not correct and llm_match:
-                # LLM verifier grading
-                return await self._grade_llm_verifier(
-                    question=question,
-                    target=target,
-                    predicted=predicted,
-                    llm_client=llm_client,
-                    grading_prompt_template=grading_prompt_template,
+        # Complete scalar numbers use exact decimal equality, never a tolerance.
+        scalar = r"[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?"
+        target_scalar = re.fullmatch(scalar, target.strip()) is not None
+        predicted_scalar = re.fullmatch(scalar, predicted.strip()) is not None
+        if numeric_match and target_scalar and predicted_scalar:
+            try:
+                correct = Decimal(target.strip()) == Decimal(predicted.strip())
+            except InvalidOperation:
+                correct = False
+            numeric_context = True
+        else:
+            # Preserve punctuation and units around numeric quantities. Partial
+            # substring matching must not accept a changed numeric magnitude.
+            numeric_context = (
+                target_scalar
+                or predicted_scalar
+                or any(re.search(r"[0-9]", value) for value in (target, predicted))
+            )
+            if numeric_context:
+                cleaned_target = re.sub(r"\s+", " ", target.strip()).lower()
+                cleaned_predicted = re.sub(r"\s+", " ", predicted.strip()).lower()
+            else:
+                cleaned_target = re.sub(r"[^a-zA-Z0-9]", "", target).lower()
+                cleaned_predicted = re.sub(r"[^a-zA-Z0-9]", "", predicted).lower()
+            correct = bool(cleaned_predicted) and cleaned_predicted == cleaned_target
+            if not correct and partial_match and not numeric_context:
+                correct = (
+                    bool(cleaned_predicted) and cleaned_predicted in cleaned_target
                 )
+
+        refusal = predicted == unsure if unsure else False
+        # Unequal complete numbers are definitively unequal. Mixed text/units
+        # may use the explicitly requested semantic verifier, but are not
+        # automatically converted or accepted by substring matching.
+        if (
+            not correct
+            and predicted.strip()
+            and partial_match
+            and llm_match
+            and not (target_scalar and predicted_scalar)
+        ):
+            return await self._grade_llm_verifier(
+                question=question,
+                target=target,
+                predicted=predicted,
+                llm_client=llm_client,
+                grading_prompt_template=grading_prompt_template,
+            )
 
         if correct:
             grade_type = GradeType.CORRECT
@@ -197,6 +228,7 @@ class MCQGrader(BaseModel):
                 unsure=unsure,
                 partial_match=False,
                 llm_match=False,
+                numeric_match=False,
             )
         if evaluation_mode == "range_verifier":
             return grading_func._grade_range_verifier(
