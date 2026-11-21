@@ -1,5 +1,6 @@
 import asyncio
 import random
+import re
 import string
 import uuid
 from collections.abc import AsyncIterator, Awaitable, Iterable
@@ -40,9 +41,12 @@ class LLMConfig(BaseModel):
 def parse_response(
     text: str, tag: str = "answer", answer_mode: AnswerMode = AnswerMode.openanswer
 ) -> str:
-    start = text.find(f"<{tag}>") + len(f"<{tag}>")
-    end = text.find(f"</{tag}>")
-    answer = text[start:end]
+    matches = re.findall(
+        rf"<{re.escape(tag)}>(.*?)</{re.escape(tag)}>", text, flags=re.DOTALL
+    )
+    if not matches:
+        raise ValueError(f"Missing complete <{tag}>...</{tag}> tags in response.")
+    answer = matches[-1]
     if answer_mode == AnswerMode.openanswer:
         return answer
     return answer.strip().upper()
